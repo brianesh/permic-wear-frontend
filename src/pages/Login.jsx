@@ -3,14 +3,14 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { login, loginError, setLoginError, loading } = useAuth();
-  const [email, setEmail]       = useState("");
+  const [name, setName]         = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]     = useState(false);
 
   const submit = e => {
     e.preventDefault();
-    if (!email || !password) { setLoginError("Please fill in both fields."); return; }
-    login(email.trim(), password);
+    if (!name || !password) { setLoginError("Please fill in both fields."); return; }
+    login(name.trim(), password);
   };
 
   return (
@@ -51,15 +51,15 @@ export default function Login() {
 
           <form onSubmit={submit} noValidate>
             <div className="lf-field">
-              <label className="lf-label">Email address</label>
+              <label className="lf-label">Name</label>
               <input
                 className="lf-input"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
+                type="text"
+                placeholder="Enter your name"
+                value={name}
                 autoFocus
-                autoComplete="email"
-                onChange={e => { setEmail(e.target.value); setLoginError(""); }}
+                autoComplete="username"
+                onChange={e => { setName(e.target.value); setLoginError(""); }}
               />
             </div>
             <div className="lf-field">

@@ -125,11 +125,11 @@ export function AuthProvider({ children }) {
   useEffect(() => { refreshPendingCount(); }, [refreshPendingCount]);
 
   // ── Login ──────────────────────────────────────────────────────
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     setLoading(true);
     setLoginError("");
     try {
-      const res = await authAPI.login(email, password);
+      const res = await authAPI.login(identifier, password);
       const { token, user: u } = res.data;
       localStorage.setItem("se_token", token);
       localStorage.setItem("se_user", JSON.stringify(u));

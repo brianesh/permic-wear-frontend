@@ -44,15 +44,15 @@ const isOffline = () => !navigator.onLine;
 
 // ── Auth ──────────────────────────────────────────────────────────
 export const authAPI = {
-  login: async (email, password) => {
+  login: async (identifier, password) => {
     if (isOffline()) {
-      const cached = await getOfflineUser(email);
+      const cached = await getOfflineUser(identifier);
       if (!cached) throw { isOfflineError: true, message: 'No cached session. Please sign in online first.' };
       if (cached.storedPassword !== password)
         throw { isOfflineError: true, message: 'Incorrect password.' };
       return { data: { token: cached.token, user: cached.user } };
     }
-    return api.post('/auth/login', { email, password });
+    return api.post('/auth/login', { identifier, password });
   },
   me:             ()                       => api.get('/auth/me'),
   logout:         ()                       => api.post('/auth/logout').catch(() => {}),
