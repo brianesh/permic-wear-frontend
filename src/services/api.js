@@ -6,7 +6,15 @@ import {
   getOfflineUser,
 } from '../lib/offlineDB';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Normalise the API URL — always ends with /api, never has trailing slash
+function buildBaseURL() {
+  let url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  url = url.trim().replace(/\/+$/, ''); // strip trailing slashes
+  if (!url.endsWith('/api')) url = url + '/api'; // ensure /api suffix
+  return url;
+}
+
+const BASE_URL = buildBaseURL();
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -52,7 +60,7 @@ export const authAPI = {
                   api.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
-// ── Categories (brands + subtypes) ───────────────────────────────
+// ── Categories ────────────────────────────────────────────────────
 export const categoriesAPI = {
   getBrands:      (params)     => api.get('/categories/brands', { params }),
   createBrand:    (data)       => api.post('/categories/brands', data),
