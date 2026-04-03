@@ -65,28 +65,50 @@ function AppShell() {
 }
 
 function AuthGate() {
-  const { user, login } = useAuth();
-  const [needsSetup, setNeedsSetup] = useState(null); // null=checking
+  const { user } = useAuth();
+  const [needsSetup, setNeedsSetup] = useState(null); // null = checking
+  const [wakingUp,   setWakingUp]   = useState(false);
 
   useEffect(() => {
-    // Only check setup status if not already logged in
     if (user) { setNeedsSetup(false); return; }
-    api.get("/auth/setup-status")
-      .then(res => setNeedsSetup(res.data.needs_setup === true))
-      .catch(() => setNeedsSetup(false)); // if backend unreachable, show login
+
+    let attempts = 0;
+    const MAX    = 8; // up to ~40 seconds for Render cold start
+
+    const check = () => {
+      api.get("/auth/setup-status")
+        .then(res => setNeedsSetup(res.data.needs_setup === true))
+        .catch(() => {
+          attempts++;
+          if (attempts >= MAX) {
+            setNeedsSetup(false); // give up — show login anyway
+            return;
+          }
+          setWakingUp(true);
+          setTimeout(check, 5000); // retry every 5 seconds
+        });
+    };
+
+    check();
   }, [user]);
 
   const handleSetupComplete = (u, token) => {
-    // Manually set user from setup response — triggers AppShell render
     localStorage.setItem("se_token", token);
-    localStorage.setItem("se_user", JSON.stringify(u));
-    window.location.reload(); // simplest way to re-init AuthContext with new user
+    localStorage.setItem("se_user",  JSON.stringify(u));
+    window.location.reload();
   };
 
   if (needsSetup === null) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg1)" }}>
-        <div style={{ color: "var(--text3)", fontSize: 14 }}>Starting Permic Men's Wear…</div>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg1)", gap: 12 }}>
+        <div style={{ color: "var(--text3)", fontSize: 14 }}>
+          {wakingUp ? "⏳ Waking up server… this takes ~30 seconds on first load" : "Starting Permic Men's Wear…"}
+        </div>
+        {wakingUp && (
+          <div style={{ color: "var(--text3)", fontSize: 12, opacity: 0.6 }}>
+            Render free tier spins down after inactivity
+          </div>
+        )}
       </div>
     );
   }
