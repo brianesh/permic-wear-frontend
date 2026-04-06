@@ -109,6 +109,19 @@ export default function AddToHome() {
         e.preventDefault();
         deferredPrompt.current = e;
         setShow(true);
+        // Auto-trigger the native install prompt after a short delay
+        // This eliminates the console warning about preventDefault being called
+        setTimeout(() => {
+          if (deferredPrompt.current) {
+            deferredPrompt.current.prompt();
+            deferredPrompt.current.userChoice.then(choiceResult => {
+              deferredPrompt.current = null;
+              if (choiceResult.outcome === "accepted") {
+                setShow(false);
+              }
+            });
+          }
+        }, 500);
       };
       window.addEventListener("beforeinstallprompt", handler);
       const t = setTimeout(() => setShow(true), 3000);
