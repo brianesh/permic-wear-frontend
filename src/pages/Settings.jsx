@@ -14,7 +14,7 @@ export default function Settings() {
   const [alerts, setAlerts] = useState({ low_stock_threshold:5, aging_days:60, sms_alerts:"true", admin_phone:"", admin_email:"", email_alerts:"true" });
   const [sms, setSms]       = useState({ at_api_key:"", at_username:"", at_sender_id:"PERMICWEAR" });
   const [gmail, setGmail]   = useState({ gmail_user:"", gmail_app_password:"" });
-  const [tuma, setTuma]     = useState({ tuma_paybill:"880100", tuma_account:"505008", tuma_phone:"0706505008", tuma_api_key:"" });
+  const [tuma, setTuma]     = useState({ tuma_email:"", tuma_paybill:"880100", tuma_account:"505008", tuma_phone:"0706505008", tuma_api_key:"" });
   const [commission, setCommission] = useState({ commission_rate:"10" });
   const [pwForm, setPwForm] = useState({ current:"", next:"", confirm:"" });
   const [pwErr, setPwErr]   = useState("");
@@ -305,6 +305,16 @@ export default function Settings() {
             </div>
 
             <div className="modal-grid" style={{marginTop:4}}>
+              <Field label="Business Email">
+                <input type="email" value={tuma.tuma_email} onChange={e=>setTuma({...tuma,tuma_email:e.target.value})} placeholder="your-business@example.com"/>
+                <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Email linked to your Tuma business account</div>
+              </Field>
+              <SecretField
+                label="Tuma API Key"
+                value={tuma.tuma_api_key}
+                onChange={e=>setTuma({...tuma,tuma_api_key:e.target.value})}
+                placeholder="Paste from Tuma dashboard → API Keys"
+              />
               <Field label="Paybill Number">
                 <input value={tuma.tuma_paybill} onChange={e=>setTuma({...tuma,tuma_paybill:e.target.value})} placeholder="e.g. 880100"/>
                 <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Your Tuma Paybill number</div>
@@ -317,12 +327,6 @@ export default function Settings() {
                 <input value={tuma.tuma_phone} onChange={e=>setTuma({...tuma,tuma_phone:e.target.value})} placeholder="e.g. 0706505008"/>
                 <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Phone number linked to the paybill</div>
               </Field>
-              <SecretField
-                label="Tuma API Key"
-                value={tuma.tuma_api_key}
-                onChange={e=>setTuma({...tuma,tuma_api_key:e.target.value})}
-                placeholder="Paste from Tuma dashboard → API Keys"
-              />
             </div>
 
             <div className="settings-info-box" style={{marginTop:16,flexDirection:"column",alignItems:"flex-start",gap:8}}>
