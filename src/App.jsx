@@ -42,7 +42,7 @@ function AppShell() {
   useEffect(() => { startKeepalive(); return () => stopKeepalive(); }, []);
 
   const setPage = useCallback(p => { if (allowed.includes(p)) setPageRaw(p); }, [allowed]);
-  const { pushHistory } = useBackHistory(activePage, setPage, startPage);
+  const { pushHistory, showExitWarning } = useBackHistory(activePage, setPage, startPage);
   const navigate = useCallback(p => {
     if (!allowed.includes(p)) return;
     setPageRaw(p); pushHistory(p);
@@ -70,6 +70,18 @@ function AppShell() {
         <SyncBanner isOnline={isOnline} pendingSync={pendingSync} />
         <AppPageHeader onSearchClick={() => setGlobalSearchOpen(true)} />
         {globalSearchOpen && <GlobalSearch onClose={() => setGlobalSearchOpen(false)} onNavigate={navigate} />}
+        {/* Exit warning overlay */}
+        {showExitWarning && (
+          <div style={{
+            position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '12px 24px',
+            borderRadius: 30, fontSize: 14, zIndex: 10000, textAlign: 'center',
+            backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)',
+            animation: 'fadeIn 0.2s ease-out',
+          }}>
+            Press back again to exit the app
+          </div>
+        )}
         {activePage === "dashboard"  && <Dashboard />}
         {activePage === "pos"        && <POS />}
         {activePage === "inventory"  && <Inventory />}

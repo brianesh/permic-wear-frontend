@@ -7,6 +7,7 @@
  *    - Pushes navigation state into browser history
  *    - On browser back button, pops the stack and calls setPage
  *    - Syncs phone hardware back button with in-app navigation
+ *    - If at root page, shows "double click to exit" message on second back press
  *
  * 2. useModalBackButton(isOpen, onClose)
  *    - When a modal/overlay is open, intercepts back button to close it
@@ -19,15 +20,21 @@
  *   useModalBackButton(isModalOpen, () => setIsModalOpen(false));
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const HISTORY_KEY = 'permic_nav_history';
+const EXIT_WARNING_KEY = 'permic_exit_warning';
+const EXIT_WARNING_TIMEOUT = 2000; // 2 seconds to press back again
 
 /**
  * useBackHistory — manages browser history stack for SPA navigation
+ * Returns { pushHistory, showExitWarning } where showExitWarning is a boolean
+ * indicating if the "double click to exit" message should be shown
  */
 export function useBackHistory(activePage, setPage, startPage) {
   const initialized = useRef(false);
+  const exitWarningTimeout = useRef(null);
+  const [showExitWarning, setShowExitWarning] = useState(false);
 
   // Initialize: restore history from sessionStorage on first load
   useEffect(() => {
@@ -53,6 +60,13 @@ export function useBackHistory(activePage, setPage, startPage) {
       if (history[history.length - 1] === page) return;
       history.push(page);
       sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      // Clear exit warning when navigating to a new page
+      sessionStorage.removeItem(EXIT_WARNING_KEY);
+      setShowExitWarning(false);
+      if (exitWarningTimeout.current) {
+        clearTimeout(exitWarningTimeout.current);
+        exitWarningTimeout.current = null;
+      }
     } catch (_) {}
   }, []);
 
@@ -68,20 +82,58 @@ export function useBackHistory(activePage, setPage, startPage) {
           history.pop();
           const prevPage = history[history.length - 1] || startPage;
           sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+          // Clear exit warning
+          sessionStorage.removeItem(EXIT_WARNING_KEY);
+          setShowExitWarning(false);
+          if (exitWarningTimeout.current) {
+            clearTimeout(exitWarningTimeout.current);
+            exitWarningTimeout.current = null;
+          }
           setPage(prevPage);
         } else {
-          // At root — allow default back behavior (exit app / go to previous site)
-          // But first, clear history
-          sessionStorage.removeItem(HISTORY_KEY);
+          // At root page — check if user already saw warning
+          const warningShown = sessionStorage.getItem(EXIT_WARNING_KEY);
+          
+          if (warningShown) {
+            // Second back press — allow default behavior (exit app)
+            sessionStorage.removeItem(EXIT_WARNING_KEY);
+            setShowExitWarning(false);
+            // Let the default back behavior happen (exit app or go to previous site)
+          } else {
+            // First back press at root — show warning
+            sessionStorage.setItem(EXIT_WARNING_KEY, 'true');
+            setShowExitWarning(true);
+            
+            // Clear warning after timeout
+            exitWarningTimeout.current = setTimeout(() => {
+              sessionStorage.removeItem(EXIT_WARNING_KEY);
+              setShowExitWarning(false);
+              exitWarningTimeout.current = null;
+            }, EXIT_WARNING_TIMEOUT);
+          }
         }
       } catch (_) {}
     };
 
     window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      if (exitWarningTimeout.current) {
+        clearTimeout(exitWarningTimeout.current);
+      }
+    };
   }, [setPage, startPage]);
 
-  return { pushHistory };
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (exitWarningTimeout.current) {
+        clearTimeout(exitWarningTimeout.current);
+      }
+    };
+  }, []);
+
+  return { pushHistory, showExitWarning };
 }
 
 /**
