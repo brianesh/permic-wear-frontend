@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { productsAPI, categoriesAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { generateSKU } from "../lib/skuGenerator";
 
 // ── Size options ─────────────────────────────────────────────────
 const SIZES_SHOES         = ["36","37","38","39","40","41","42","43","44","45","46"];
@@ -76,6 +77,167 @@ export default function Inventory() {
   const [csvModal, setCsvModal]     = useState(false);
   const [csvPreview, setCsvPreview] = useState([]);
   const [csvError, setCsvError]     = useState("");
+
+  // ── Bulk creation modal ─────────────────────────────────────────
+  const [bulkModal, setBulkModal]     = useState(false);
+  const [bulkForm, setBulkForm]       = useState({
+    name: "",
+    brand: "",
+    brand_id: null,
+    sub_type_id: null,
+    category: "",
+    colors: [],
+    sizes: [],
+    minPrice: "",
+    stock: "",
+    distributeStock: false,
+    photo_url: "",
+  });
+  const [bulkPreview, setBulkPreview] = useState([]);
+  const [bulkSaving, setBulkSaving]   = useState(false);
+  const [bulkError, setBulkError]     = useState("");
+  const [bulkPhotoPreview, setBulkPhotoPreview] = useState("");
+  const bulkPhotoRef = useRef();
+
+  // ── Bulk creation handlers ──────────────────────────────────────
+  const openBulkAdd = () => {
+    const f = {
+      name: "",
+      brand: selBrand?.name || "",
+      brand_id: selBrand?.id || null,
+      sub_type_id: selSubtype?.id || null,
+      category: selSubtype?.name || "",
+      colors: [],
+      sizes: [],
+      minPrice: "",
+      stock: "",
+      distributeStock: false,
+      photo_url: "",
+    };
+    setBulkForm(f);
+    setBulkPreview([]);
+    setBulkError("");
+    setBulkModal(true);
+  };
+
+  const addColor = () => {
+    const color = prompt("Enter color name:");
+    if (color && !bulkForm.colors.includes(color)) {
+      setBulkForm(f => ({ ...f, colors: [...f.colors, color] }));
+    }
+  };
+
+  const removeColor = (color) => {
+    setBulkForm(f => ({ ...f, colors: f.colors.filter(c => c !== color) }));
+  };
+
+  const addSize = () => {
+    const size = prompt("Enter size (e.g., 40, XL, 32):");
+    if (size && !bulkForm.sizes.includes(size)) {
+      setBulkForm(f => ({ ...f, sizes: [...f.sizes, size] }));
+    }
+  };
+
+  const removeSize = (size) => {
+    setBulkForm(f => ({ ...f, sizes: f.sizes.filter(s => s !== size) }));
+  };
+
+  const handleBulkPhotoFile = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setBulkPhotoPreview(ev.target.result);
+      setBulkForm(f => ({ ...f, photo_url: ev.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const generateBulkPreview = () => {
+    if (!bulkForm.name || !bulkForm.brand || !bulkForm.minPrice) {
+      setBulkError("Product name, brand, and min price are required");
+      return;
+    }
+    if (bulkForm.colors.length === 0) {
+      setBulkError("Add at least one color");
+      return;
+    }
+    if (bulkForm.sizes.length === 0) {
+      setBulkError("Add at least one size");
+      return;
+    }
+
+    // Import the preview function from variantGenerator
+    import('../services/variantGenerator').then(({ previewVariants }) => {
+      const preview = previewVariants({
+        name: bulkForm.name,
+        brand: bulkForm.brand,
+        subType: bulkForm.category,
+        colors: bulkForm.colors,
+        sizes: bulkForm.sizes,
+        minPrice: bulkForm.minPrice,
+        stock: bulkForm.stock,
+        distributeStock: bulkForm.distributeStock,
+        photoUrl: bulkForm.photo_url,
+      });
+      setBulkPreview(preview);
+      setBulkError("");
+    }).catch(err => {
+      setBulkError("Failed to generate preview: " + err.message);
+    });
+  };
+
+  const saveBulkProducts = async () => {
+    if (bulkPreview.length === 0) {
+      setBulkError("Generate preview first");
+      return;
+    }
+
+    setBulkSaving(true);
+    setBulkError("");
+
+    try {
+      // Import the generateVariants function
+      const { generateVariants } = await import('../services/variantGenerator');
+      
+      // Get database connection (assuming it's available in the context or can be imported)
+      // For now, we'll use the API endpoint
+      const response = await fetch('/api/products/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('se_token')}`
+        },
+        body: JSON.stringify({
+          product: {
+            name: bulkForm.name,
+            brand: bulkForm.brand,
+            subType: bulkForm.category,
+            colors: bulkForm.colors,
+            sizes: bulkForm.sizes,
+            minPrice: bulkForm.minPrice,
+            stock: bulkForm.stock,
+            distributeStock: bulkForm.distributeStock,
+            photoUrl: bulkForm.photo_url,
+          },
+          storeId: user?.store_id || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setBulkModal(false);
+        setBulkPreview([]);
+        refreshProducts();
+      } else {
+        setBulkError(result.error || "Failed to save products");
+      }
+    } catch (err) {
+      setBulkError("Network error: " + err.message);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const photoRef = useRef();
   const catPhotoRef = useRef();
@@ -337,7 +499,21 @@ export default function Inventory() {
               </div>
               <div className="modal-field" style={{gridColumn:"1/-1"}}>
                 <label>SKU *</label>
-                <input type="text" placeholder="NK-AF1-W42" value={form.sku} onChange={e => setForm({...form, sku:e.target.value})}/>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <input type="text" placeholder="NK-AF1-W42" value={form.sku} onChange={e => setForm({...form, sku:e.target.value})}/>
+                  <button className="modal-cancel" style={{fontSize:12,padding:"6px 10px",height:"auto"}}
+                    onClick={() => {
+                      const sku = generateSKU({
+                        brand: form.brand,
+                        subType: form.category,
+                        color: form.color || "Default",
+                        size: form.size
+                      });
+                      setForm({...form, sku});
+                    }}>
+                    🤖 Auto SKU
+                  </button>
+                </div>
               </div>
             </div>
 
