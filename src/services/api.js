@@ -135,7 +135,7 @@ export const productsAPI = {
   create:     (data)     => api.post('/products', data),
   update:     (id, data) => api.put(`/products/${id}`, data),
   remove:     (id)       => api.delete(`/products/${id}`),
-  bulkImport: (products) => api.post('/products/bulk-import', { products }),
+  bulkImport: (products) => api.post('/products/bulk-import', { products }, { timeout: 120000 }),
 };
 
 // ── Sales ─────────────────────────────────────────────────────────
