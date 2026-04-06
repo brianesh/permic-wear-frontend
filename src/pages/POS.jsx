@@ -326,11 +326,11 @@ export default function POS() {
     <div className="pos-page"><div className="receipt-overlay"><div className="receipt-card">
       <div className="receipt-header">
         <div className="receipt-logo">PW</div>
-        <div><div className="receipt-title">{store.store_name || "Permic Men's Wear"}</div><div className="receipt-sub">{store.store_location} · {receipt.date.toLocaleString("en-KE")}</div></div>
+        <div style={{textAlign:"center"}}><div className="receipt-title">{store.store_name || "Permic Men's Wear"}</div><div className="receipt-sub">{store.store_location} · {receipt.date.toLocaleString("en-KE")}</div></div>
         <div className="receipt-check">✓</div>
       </div>
-      <div className="receipt-txn">{receipt.txn}</div>
-      <div className="receipt-cashier">Served by: {receipt.cashier}</div>
+      <div className="receipt-txn" style={{textAlign:"center"}}>{receipt.txn}</div>
+      <div className="receipt-cashier" style={{textAlign:"center"}}>Served by: {receipt.cashier}</div>
       {receipt.isOffline && <div className="receipt-offline-badge">📴 Saved offline — syncs on reconnect</div>}
       <div className="receipt-items">
         {receipt.items.map((c, i) => (
