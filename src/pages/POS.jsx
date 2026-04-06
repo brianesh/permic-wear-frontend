@@ -230,16 +230,17 @@ export default function POS() {
       if ((method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone) {
         try {
           const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
-          const checkoutRequestId = sr.data?.checkout_request_id;
-          if (!checkoutRequestId) {
-            console.error('[Tuma] No checkout_request_id in response:', sr.data);
-            setCheckoutErr("STK push response missing checkout_request_id. Please check backend logs.");
+          // Use the reference from backend (always available) for polling
+          const reference = sr.data?.reference || sr.data?.checkout_request_id;
+          if (!reference) {
+            console.error('[Tuma] No reference in response:', sr.data);
+            setCheckoutErr("STK push response missing reference. Please check backend logs.");
             setTumaStep(null);
             return;
           }
-          setCheckoutId(checkoutRequestId);
+          setCheckoutId(reference);
           setTumaStep("confirming");
-          startPoll(checkoutRequestId);
+          startPoll(reference);
         } catch (e) {
           const msg = e.response?.data?.error || e.message || "STK push failed";
           console.error('[Tuma STK Error]', msg, e.response?.data);
