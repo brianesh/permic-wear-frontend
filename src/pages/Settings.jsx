@@ -342,13 +342,23 @@ export default function Settings() {
                 <button className="modal-save" style={{background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text)"}}
                   onClick={async()=>{
                     try {
-                      const r = await fetch((import.meta.env.VITE_API_URL||"http://localhost:5000/api")+"/tuma/test-credentials",
-                        {headers:{Authorization:`Bearer ${localStorage.getItem("se_token")}`}});
+                      const apiUrl = import.meta.env.VITE_API_URL||"http://localhost:5000/api";
+                      const token = localStorage.getItem("se_token");
+                      console.log("[Test] URL:", apiUrl+"/tuma/test-credentials");
+                      const r = await fetch(apiUrl+"/tuma/test-credentials",
+                        {headers:{Authorization:`Bearer ${token}`}});
+                      console.log("[Test] Status:", r.status);
                       const d = await r.json();
-                      alert(d.ok
-                        ? `OK: ${d.message}\n\nPaybill: ${d.report?.paybill}\nAccount: ${d.report?.account}`
-                        : `FAILED: ${d.message}`);
-                    } catch(e){alert("Test failed: "+e.message);}
+                      console.log("[Test] Response:", d);
+                      if (d.ok) {
+                        alert(`✅ OK: ${d.message}\n\nPaybill: ${d.report?.paybill}\nAccount: ${d.report?.account}\nCallback: ${d.report?.callbackUrl||'Not set'}`);
+                      } else {
+                        alert(`❌ FAILED: ${d.message || 'Unknown error'}\n\n${JSON.stringify(d.report||{},null,2)}`);
+                      }
+                    } catch(e){
+                      console.error("[Test] Error:", e);
+                      alert(`❌ Test failed: ${e.message}\n\nCheck browser console for details.`);
+                    }
                   }}
                 >🔍 Test Credentials</button>
               )}
