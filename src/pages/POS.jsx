@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useStore } from "../context/StoreContext";
 import { salesAPI, tumaAPI, productsAPI, categoriesAPI } from "../services/api";
 import { queueSale, updateCachedProductStock } from "../lib/offlineDB";
-import { useModalBackButton } from "../lib/useBackHistory";
+import { useModalBackButton, useBackHistory } from "../lib/useBackHistory";
 
 const fmt = n => `KES ${Number(n || 0).toLocaleString()}`;
 const num = v => parseInt(v, 10) || 0;
@@ -38,7 +38,7 @@ function printReceipt(receipt, store = {}) {
   w.document.close(); w.focus(); setTimeout(() => w.print(), 500);
 }
 
-function useCategoryNav() {
+function useCategoryNav(pushHistory) {
   const [topType, setTopType] = useState(null);
   const [brands, setBrands] = useState([]);
   const [subtypes, setSubtypes] = useState([]);
@@ -48,23 +48,36 @@ function useCategoryNav() {
   const goTop = () => { setTopType(null); setSelBrand(null); setSelSubtype(null); setBrands([]); setSubtypes([]); };
   const goBrands = tt => {
     setTopType(tt); setSelBrand(null); setSelSubtype(null); setSubtypes([]); setLoading(true);
+    if (pushHistory) pushHistory(`category-brands-${tt}`);
     categoriesAPI.getBrands({ top_type: tt }).then(r => setBrands(r.data || [])).catch(() => setBrands([])).finally(() => setLoading(false));
   };
   const goSubtypes = b => {
     setSelBrand(b); setSelSubtype(null);
     if (b?.top_type === "shoes") {
       setLoading(true);
+      if (pushHistory) pushHistory(`category-subtypes-${b.id}`);
       categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
     }
   };
+  const selectSubtype = st => {
+    setSelSubtype(st);
+    if (pushHistory) pushHistory(`category-products-${st.id}`);
+  };
+  const goBack = () => {
+    const level = topType === null ? "top" : selBrand === null ? "brands" : (topType === "shoes" && selSubtype === null) ? "subtypes" : "products";
+    if (level === "products") { setSelSubtype(null); }
+    else if (level === "subtypes") { setSelBrand(null); setSelSubtype(null); }
+    else if (level === "brands") { goTop(); }
+  };
   const level = topType === null ? "top" : selBrand === null ? "brands" : (topType === "shoes" && selSubtype === null) ? "subtypes" : "products";
-  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype, level, loading, goTop, goBrands, goSubtypes };
+  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack };
 }
 
 export default function POS() {
   const { user, commissionRate, isOnline, refreshPendingCount } = useAuth();
   const store = useStore();
-  const cat = useCategoryNav();
+  const { pushHistory } = useBackHistory('pos', () => {}, 'pos');
+  const cat = useCategoryNav(pushHistory);
 
   const [catalog, setCatalog] = useState([]);
   const [catLoading, setCatLoading] = useState(false);

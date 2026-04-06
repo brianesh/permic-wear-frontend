@@ -764,9 +764,9 @@ body {
 ═══════════════════════════════════════════════════════ */
 .pos-page   { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 .pos-header { padding: 20px 24px 0; flex-shrink: 0; }
-.pos-layout { display: grid; grid-template-columns: 1fr 440px; flex: 1; overflow: hidden; margin-top: 16px; }
+.pos-layout { display: grid; grid-template-columns: 1fr 440px; flex: 1; overflow: hidden; margin-top: 16px; min-height: 0; }
 
-.pos-products { display: flex; flex-direction: column; overflow: hidden; padding: 0 0 0 24px; gap: 14px; }
+.pos-products { display: flex; flex-direction: column; overflow: hidden; padding: 0 0 0 24px; gap: 14px; min-height: 0; }
 .pos-search-wrap { position: relative; display: flex; align-items: center; }
 .pos-search-icon { position: absolute; left: 12px; color: var(--text3); font-size: 15px; pointer-events: none; }
 .pos-search {
