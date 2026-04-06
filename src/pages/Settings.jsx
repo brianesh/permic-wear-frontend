@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useStore } from "../context/StoreContext";
-import { settingsAPI, authAPI } from "../services/api";
+import { settingsAPI, authAPI, BASE_URL } from "../services/api";
 
 export default function Settings() {
   const { user, setCommissionRate, logout } = useAuth();
@@ -346,10 +346,10 @@ export default function Settings() {
                 <button className="modal-save" style={{background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text)"}}
                   onClick={async()=>{
                     try {
-                      const apiUrl = import.meta.env.VITE_API_URL||"http://localhost:5000/api";
                       const token = localStorage.getItem("se_token");
-                      console.log("[Test] URL:", apiUrl+"/tuma/test-credentials");
-                      const r = await fetch(apiUrl+"/tuma/test-credentials",
+                      const url = `${BASE_URL}/tuma/test-credentials`;
+                      console.log("[Test] URL:", url);
+                      const r = await fetch(url,
                         {headers:{Authorization:`Bearer ${token}`}});
                       console.log("[Test] Status:", r.status);
                       const d = await r.json();
