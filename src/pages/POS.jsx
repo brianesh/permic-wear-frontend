@@ -230,9 +230,19 @@ export default function POS() {
       if ((method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone) {
         try {
           const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
-          setCheckoutId(sr.data.checkout_request_id); setTumaStep("confirming"); startPoll(sr.data.checkout_request_id);
+          const checkoutRequestId = sr.data?.checkout_request_id;
+          if (!checkoutRequestId) {
+            console.error('[Tuma] No checkout_request_id in response:', sr.data);
+            setCheckoutErr("STK push response missing checkout_request_id. Please check backend logs.");
+            setTumaStep(null);
+            return;
+          }
+          setCheckoutId(checkoutRequestId);
+          setTumaStep("confirming");
+          startPoll(checkoutRequestId);
         } catch (e) {
           const msg = e.response?.data?.error || e.message || "STK push failed";
+          console.error('[Tuma STK Error]', msg, e.response?.data);
           setCheckoutErr(msg.includes("STK_CANCEL_BLOCKED") ? "🚫 This number is blocked due to repeated cancellations. Contact support." : msg);
           setTumaStep(null);
         }
