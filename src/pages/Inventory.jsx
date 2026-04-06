@@ -196,31 +196,35 @@ export default function Inventory() {
     setBulkError("");
 
     try {
-      // Import the generateVariants function
-      const { generateVariants } = await import('../services/variantGenerator');
-      
-      // Get database connection (assuming it's available in the context or can be imported)
-      // For now, we'll use the API endpoint
-      const response = await fetch('/api/products/bulk', {
+      // Prepare the product data for the API
+      const productData = {
+        name: bulkForm.name,
+        brand: bulkForm.brand,
+        brand_id: bulkForm.brand_id,
+        sub_type_id: bulkForm.sub_type_id,
+        subType: bulkForm.category,
+        colors: bulkForm.colors,
+        sizes: bulkForm.sizes,
+        minPrice: bulkForm.minPrice,
+        min_price: bulkForm.minPrice,
+        stock: bulkForm.stock,
+        distributeStock: bulkForm.distributeStock,
+        topType: topType,
+        top_type: topType,
+        category: bulkForm.category,
+        photoUrl: bulkForm.photo_url,
+        photo_url: bulkForm.photo_url,
+        store_id: user?.store_id || null,
+      };
+
+      // Use the bulk-create endpoint which handles variant generation on the server
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/products/bulk-create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('se_token')}`
         },
-        body: JSON.stringify({
-          product: {
-            name: bulkForm.name,
-            brand: bulkForm.brand,
-            subType: bulkForm.category,
-            colors: bulkForm.colors,
-            sizes: bulkForm.sizes,
-            minPrice: bulkForm.minPrice,
-            stock: bulkForm.stock,
-            distributeStock: bulkForm.distributeStock,
-            photoUrl: bulkForm.photo_url,
-          },
-          storeId: user?.store_id || null
-        })
+        body: JSON.stringify(productData)
       });
 
       const result = await response.json();
@@ -228,9 +232,10 @@ export default function Inventory() {
       if (response.ok) {
         setBulkModal(false);
         setBulkPreview([]);
+        setBulkError("");
         refreshProducts();
       } else {
-        setBulkError(result.error || "Failed to save products");
+        setBulkError(result.error || result.message || "Failed to save products");
       }
     } catch (err) {
       setBulkError("Network error: " + err.message);
@@ -606,6 +611,138 @@ export default function Inventory() {
         </div>
       )}
 
+      {/* ── Bulk Add Modal ── */}
+      {bulkModal && (
+        <div className="modal-overlay" onClick={() => { setBulkModal(false); setBulkError(""); }}>
+          <div className="modal-card" style={{maxWidth:700}} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">📦 Bulk Add Products</h3>
+              <button className="modal-close" onClick={() => { setBulkModal(false); setBulkError(""); }}>✕</button>
+            </div>
+
+            {/* Photo upload */}
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+              <div style={{width:80,height:80,borderRadius:10,overflow:"hidden",background:"var(--bg2)",border:"2px dashed var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {bulkPhotoPreview
+                  ? <img src={bulkPhotoPreview} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  : <span style={{fontSize:28,opacity:.4}}>📷</span>}
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"var(--text3)",marginBottom:6}}>Product photo (optional)</div>
+                <input ref={bulkPhotoRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleBulkPhotoFile}/>
+                <button className="modal-cancel" style={{fontSize:12,padding:"5px 12px"}} onClick={() => bulkPhotoRef.current.click()}>📷 Upload Photo</button>
+                {bulkPhotoPreview && <button className="modal-cancel" style={{fontSize:12,padding:"5px 10px",marginLeft:6}} onClick={() => { setBulkPhotoPreview(""); setBulkForm(f => ({...f, photo_url:""})); }}>✕ Remove</button>}
+              </div>
+            </div>
+
+            <div className="modal-grid">
+              <div className="modal-field" style={{gridColumn:"1/-1"}}>
+                <label>Product Name *</label>
+                <input type="text" placeholder="e.g. Nike Air Force 1"
+                  value={bulkForm.name} onChange={e => setBulkForm({...bulkForm, name:e.target.value})}/>
+              </div>
+              <div className="modal-field">
+                <label>Brand</label>
+                <input type="text" value={bulkForm.brand} readOnly style={{opacity:.7}}/>
+              </div>
+              <div className="modal-field">
+                <label>Model / Category</label>
+                <input type="text" value={bulkForm.category} onChange={e => setBulkForm({...bulkForm, category:e.target.value})} placeholder="e.g. Air Force 1"/>
+              </div>
+
+              {/* Colors */}
+              <div className="modal-field" style={{gridColumn:"1/-1"}}>
+                <label>Colors *</label>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+                  {bulkForm.colors.map(c => (
+                    <span key={c} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--teal)",color:"#000",fontSize:12,fontWeight:600}}>
+                      {c}
+                      <button onClick={() => removeColor(c)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#000",fontSize:14}}>✕</button>
+                    </span>
+                  ))}
+                  <button className="modal-cancel" style={{fontSize:11,padding:"3px 8px"}} onClick={addColor}>+ Add Color</button>
+                </div>
+              </div>
+
+              {/* Sizes */}
+              <div className="modal-field" style={{gridColumn:"1/-1"}}>
+                <label>Sizes *</label>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+                  {bulkForm.sizes.map(s => (
+                    <span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--purple)",color:"#fff",fontSize:12,fontWeight:600}}>
+                      {s}
+                      <button onClick={() => removeSize(s)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#fff",fontSize:14}}>✕</button>
+                    </span>
+                  ))}
+                  <button className="modal-cancel" style={{fontSize:11,padding:"3px 8px"}} onClick={addSize}>+ Add Size</button>
+                </div>
+              </div>
+
+              <div className="modal-field">
+                <label>Min Price (KES) *</label>
+                <input type="number" min="0" placeholder="4800" value={bulkForm.minPrice} onChange={e => setBulkForm({...bulkForm, minPrice:e.target.value})}/>
+              </div>
+              <div className="modal-field">
+                <label>Stock per Variant</label>
+                <input type="number" min="0" placeholder="10" value={bulkForm.stock} onChange={e => setBulkForm({...bulkForm, stock:e.target.value})}/>
+              </div>
+              <div className="modal-field" style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}>
+                <input type="checkbox" id="distributeStock" checked={bulkForm.distributeStock} onChange={e => setBulkForm({...bulkForm, distributeStock:e.target.checked})} style={{width:18,height:18}}/>
+                <label htmlFor="distributeStock" style={{cursor:"pointer",fontSize:13}}>Distribute stock across all variants (total stock)</label>
+              </div>
+            </div>
+
+            {bulkError && <div className="lf-error" style={{marginTop:12}}><span>⚠</span> {bulkError}</div>}
+
+            {/* Preview */}
+            {bulkPreview.length > 0 && (
+              <div style={{marginTop:16,maxHeight:200,overflow:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                <div style={{padding:"8px 12px",background:"var(--bg2)",borderBottom:"1px solid var(--border)",fontWeight:600,fontSize:13,position:"sticky",top:0}}>
+                  ✓ {bulkPreview.length} variants will be created
+                </div>
+                <table style={{width:"100%",fontSize:12}}>
+                  <thead>
+                    <tr style={{background:"var(--bg2)"}}>
+                      <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"1px solid var(--border)"}}>Color</th>
+                      <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"1px solid var(--border)"}}>Size</th>
+                      <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"1px solid var(--border)"}}>SKU</th>
+                      <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"1px solid var(--border)"}}>Stock</th>
+                      <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"1px solid var(--border)"}}>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkPreview.slice(0, 20).map((v, i) => (
+                      <tr key={i}>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{v.color}</td>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{v.size}</td>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)",fontFamily:"monospace",fontSize:11}}>{v.sku}</td>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{v.stock}</td>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{fmt(v.minPrice)}</td>
+                      </tr>
+                    ))}
+                    {bulkPreview.length > 20 && (
+                      <tr>
+                        <td colSpan="5" style={{padding:"8px",textAlign:"center",color:"var(--text3)",fontSize:11}}>
+                          ... and {bulkPreview.length - 20} more variants
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="modal-actions" style={{marginTop:16}}>
+              <button className="modal-cancel" onClick={() => { setBulkModal(false); setBulkError(""); setBulkPreview([]); }}>Cancel</button>
+              <button className="modal-cancel" onClick={generateBulkPreview} disabled={bulkSaving}>🔮 Preview</button>
+              <button className="modal-save" onClick={saveBulkProducts} disabled={bulkSaving || bulkPreview.length === 0}>
+                {bulkSaving ? "Creating…" : `Create ${bulkPreview.length || ''} Variants`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── CSV Modal ── */}
       {csvModal && (
         <div className="modal-overlay" onClick={() => { setCsvModal(false); setCsvPreview([]); setCsvError(""); }}>
@@ -640,7 +777,10 @@ export default function Inventory() {
           )}
           <button className="modal-cancel" style={{padding:"10px 14px",fontSize:13}} onClick={() => setCsvModal(true)}>📥 Import CSV</button>
           {(selSubtype || (selBrand && topType === "clothes")) && isAdmin && (
-            <button className="primary-btn" style={{fontSize:13}} onClick={openAdd}>+ Add Product</button>
+            <>
+              <button className="primary-btn" style={{fontSize:13}} onClick={openBulkAdd}>📦 Bulk Add</button>
+              <button className="primary-btn" style={{fontSize:13}} onClick={openAdd}>+ Add Product</button>
+            </>
           )}
         </div>
       </div>
