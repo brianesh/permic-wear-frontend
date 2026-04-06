@@ -143,10 +143,9 @@ export const salesAPI = {
   create:             (data)   => api.post('/sales', data),
   getAll:             (params) => api.get('/sales', { params }),
   getById:            (id)     => api.get(`/sales/${id}`),
-  confirmMpesaManual: (saleId) => api.post('/sales/confirm-mpesa-manual', { sale_id: saleId }),
 };
 
-// ── Tuma (replaces mpesaAPI) ──────────────────────────────────────
+// ── Tuma ──────────────────────────────────────────────────────────
 export const tumaAPI = {
   stkPush:         (sale_id, phone, amount)                     => api.post('/tuma/stk-push',       { sale_id, phone, amount }),
   getStatus:       (checkoutRequestId)                          => api.get(`/tuma/status/${checkoutRequestId}`),
@@ -157,8 +156,6 @@ export const tumaAPI = {
   unblockPhone:    (phone)                                      => api.delete(`/tuma/cancel-blocks/${encodeURIComponent(phone)}`),
 };
 
-// Keep mpesaAPI as alias so any unchanged code still works
-export const mpesaAPI = tumaAPI;
 
 // ── Stores ────────────────────────────────────────────────────────
 export const storesAPI = {

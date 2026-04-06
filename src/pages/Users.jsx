@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { usersAPI } from "../services/api";
+import { usersAPI, storesAPI } from "../services/api";
 
 const ROLE_COLOR = { super_admin:"#f5a623", admin:"#4ecdc4", cashier:"#a8e6cf" };
 const ROLE_LABEL = { super_admin:"Super Admin", admin:"Admin", cashier:"Cashier" };
 const AV_COLORS  = ["#f5a623","#4ecdc4","#a8e6cf","#f5a62399","#4ecdc499"];
-const EMPTY      = { name:"", email:"", role:"cashier", password:"", commission_rate:"10" };
+const EMPTY      = { name:"", email:"", role:"cashier", password:"", commission_rate:"10", store_id:"" };
 
 export default function Users() {
   const { user: me } = useAuth();
   const [users, setUsers]   = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading]= useState(true);
   const [modal, setModal]   = useState(false);
   const [editId, setEditId] = useState(null);
@@ -19,17 +20,23 @@ export default function Users() {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
 
-  const load = () => { usersAPI.getAll().then(r=>setUsers(r.data||[])).catch(()=>{}).finally(()=>setLoading(false)); };
+  const load = () => {
+    Promise.all([
+      usersAPI.getAll().then(r=>setUsers(r.data||[])).catch(()=>{}),
+      storesAPI.getAll().then(r=>setStores(r.data||[])).catch(()=>setStores([])),
+    ]).finally(()=>setLoading(false));
+  };
   useEffect(()=>{ load(); },[]);
 
   const openAdd  = ()  => { setForm(EMPTY);  setEditId(null); setModal(true); setError(""); };
-  const openEdit = u   => { setForm({ name:u.name, email:u.email, role:u.role, password:"", commission_rate:String(u.commission_rate||10) }); setEditId(u.id); setModal(true); setError(""); };
+  const openEdit = u   => { setForm({ name:u.name, email:u.email, role:u.role, password:"", commission_rate:String(u.commission_rate||10), store_id: u.store_id || "" }); setEditId(u.id); setModal(true); setError(""); };
 
   const save = async () => {
     if (!form.name||!form.email) { setError("Name and email required"); return; }
     setSaving(true); setError("");
     try {
       const payload = { name:form.name, email:form.email, role:form.role, commission_rate:parseFloat(form.commission_rate||10) };
+      if (form.store_id) payload.store_id = parseInt(form.store_id);
       if (form.password) payload.password = form.password;
       if (editId) await usersAPI.update(editId, payload);
       else        await usersAPI.create({ ...payload, password: form.password });
@@ -66,6 +73,12 @@ export default function Users() {
                   <option value="cashier">Cashier</option>
                   <option value="admin">Admin</option>
                   {me.role==="super_admin"&&<option value="super_admin">Super Admin</option>}
+                </select>
+              </div>
+              <div className="modal-field"><label>Store Assignment</label>
+                <select value={form.store_id} onChange={e=>setForm({...form,store_id:e.target.value})}>
+                  <option value="">— No store (Super Admin) —</option>
+                  {stores.filter(s=>s.is_active).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div className="modal-field"><label>Commission Rate (%)</label><input type="number" value={form.commission_rate} onChange={e=>setForm({...form,commission_rate:e.target.value})} placeholder="10"/></div>
@@ -120,6 +133,7 @@ export default function Users() {
                 <div className="user-meta-item"><span className="user-meta-label">Last Login</span><span className="user-meta-val">{u.last_login ? new Date(u.last_login).toLocaleString("en-KE") : "Never"}</span></div>
                 {u.role==="cashier"&&<div className="user-meta-item"><span className="user-meta-label">Commission</span><span className="user-meta-val" style={{color:"var(--gold)"}}>{u.commission_rate}%</span></div>}
                 {u.total_sales!=null&&<div className="user-meta-item"><span className="user-meta-label">Sales</span><span className="user-meta-val">{u.total_sales} txns</span></div>}
+                {u.store_id && (() => { const s = stores.find(s=>s.id===u.store_id); return s ? <div className="user-meta-item"><span className="user-meta-label">Store</span><span className="user-meta-val" style={{color:"var(--teal)"}}>{s.name}</span></div> : null; })()}
               </div>
               {canManage(u)?(
                 <div className="user-card-actions">
