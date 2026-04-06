@@ -1,112 +1,64 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useStore } from "../context/StoreContext";
-import { salesAPI, mpesaAPI, productsAPI, categoriesAPI } from "../services/api";
+import { salesAPI, tumaAPI, productsAPI, categoriesAPI } from "../services/api";
 import { queueSale, updateCachedProductStock } from "../lib/offlineDB";
+import { useModalBackButton } from "../lib/useBackHistory";
 
-const fmt = n => `KES ${Number(n||0).toLocaleString()}`;
+const fmt = n => `KES ${Number(n || 0).toLocaleString()}`;
 const num = v => parseInt(v, 10) || 0;
-
-const CLOTH_ICONS = {
-  "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳",
-  "Jeans":"👖","Hoodies":"🧥","Jackets":"🧥","Caps":"🧢","Tracksuits":"🩱",
-};
+const CLOTH_ICONS = { "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳","Jeans":"👖","Hoodies":"🧥","Jackets":"🧥","Caps":"🧢","Tracksuits":"🩱" };
+const stockC = s => s > 10 ? "var(--teal)" : s > 0 ? "var(--gold)" : "#e74c3c";
 
 function calcItem(item, rate) {
-  const sellingTotal = item.sellingPrice * item.qty;
-  const minTotal     = item.minPrice * item.qty;
-  const extraProfit  = sellingTotal > minTotal ? sellingTotal - minTotal : 0;
-  const commission   = extraProfit > 0 ? Math.round(extraProfit * rate / 100) : 0;
-  return { sellingTotal, minTotal, extraProfit, commission };
+  const st = item.sellingPrice * item.qty, mt = item.minPrice * item.qty;
+  const ep = st > mt ? st - mt : 0;
+  return { extraProfit: ep, commission: ep > 0 ? Math.round(ep * rate / 100) : 0 };
 }
 
 function printReceipt(receipt, store = {}) {
-  const storeName      = store.store_name      || "Permic Men's Wear";
-  const storeLoc       = store.store_location  || "Ruiru, Kenya";
-  const storePhone     = store.store_phone     || "+254 792 369700";
-  const mpesaShortcode = store.mpesa_shortcode || "880100";
-  const mpesaAccount   = store.mpesa_account   || "505008";
-
-  const lines = receipt.items.map(c => `
-    <tr>
-      <td>${c.name} Sz${c.size}</td>
-      <td style="text-align:center">${c.qty}</td>
-      <td style="text-align:right">KES ${(c.sellingPrice * c.qty).toLocaleString()}</td>
-    </tr>`).join("");
-
-  const html = `<!DOCTYPE html><html><head><title>Receipt ${receipt.txn}</title>
-  <style>
-    body{font-family:monospace;font-size:13px;width:300px;margin:0 auto;padding:20px}
-    h2{text-align:center;font-size:16px;margin:0 0 2px}
-    .sub{text-align:center;color:#555;font-size:11px;margin-bottom:12px}
-    table{width:100%;border-collapse:collapse} td,th{padding:4px 2px;vertical-align:top}
-    hr{border:none;border-top:1px dashed #ccc;margin:8px 0}
-    .total{font-weight:bold;font-size:14px}
-    .footer{text-align:center;font-size:11px;color:#888;margin-top:14px}
-  </style></head><body>
-  <h2>👗 ${storeName}</h2>
-  <div class="sub">
-    ${storeLoc} · ${storePhone}<br/>
-    ${receipt.date.toLocaleString("en-KE")}<br/>
-    TXN: ${receipt.txn} · Cashier: ${receipt.cashier}
-  </div>
-  <hr/>
+  const nm = store.store_name || "Permic Men's Wear";
+  const lc = store.store_location || "Nairobi, Kenya";
+  const ph = store.store_phone || "+254 706 505008";
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`PERMIC:${receipt.txn}:${receipt.subtotal}`)}`;
+  const rows = receipt.items.map(c => `<tr><td><b>${c.name}</b><br/><small>SKU:${c.sku} Sz:${c.size}</small></td><td style="text-align:center">${c.qty}</td><td style="text-align:right">KES ${((c.sellingPrice || num(c.sellingPrice)) * c.qty).toLocaleString()}</td></tr>`).join("");
+  const w = window.open("", "_blank", "width=380,height=650");
+  w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;font-size:12px;width:300px;margin:0 auto;padding:16px}h2{text-align:center;font-size:15px;margin:0 0 2px}.c{text-align:center;color:#555;font-size:10px;margin-bottom:10px}table{width:100%;border-collapse:collapse}td{padding:3px 2px;vertical-align:top}hr{border:none;border-top:1px dashed #bbb;margin:7px 0}.f{text-align:center;font-size:10px;color:#888;margin-top:12px}.q{text-align:center;margin:10px 0}</style></head><body>
+  <h2>🏪 ${nm}</h2><div class="c">${lc} · ${ph}<br/>${receipt.date.toLocaleString("en-KE")}<br/><b>${receipt.txn}</b> · ${receipt.cashier}</div>
+  <hr/><table><tr><th style="text-align:left">Item</th><th>Qty</th><th style="text-align:right">Amt</th></tr>${rows}</table><hr/>
   <table>
-    <tr><th style="text-align:left">Item</th><th>Qty</th><th style="text-align:right">Amt</th></tr>
-    ${lines}
-  </table>
-  <hr/>
-  <table>
-    <tr class="total"><td colspan="2">TOTAL</td><td style="text-align:right">KES ${receipt.subtotal.toLocaleString()}</td></tr>
+    <tr><td colspan="2"><b>TOTAL</b></td><td style="text-align:right"><b>KES ${receipt.subtotal.toLocaleString()}</b></td></tr>
     <tr><td colspan="2">Payment</td><td style="text-align:right">${receipt.method}</td></tr>
-    ${receipt.method==="Cash"||receipt.method==="Split"
-      ? `<tr><td colspan="2">Amount Paid</td><td style="text-align:right">KES ${(receipt.amountPaid||0).toLocaleString()}</td></tr>
-         <tr><td colspan="2"><b>Change</b></td><td style="text-align:right"><b>KES ${(receipt.change||0).toLocaleString()}</b></td></tr>`
-      : ""}
-    ${receipt.method==="M-Pesa"&&receipt.mpesaRef
-      ? `<tr><td colspan="2">M-Pesa Ref</td><td style="text-align:right">${receipt.mpesaRef}</td></tr>
-         <tr><td colspan="2">Paybill</td><td style="text-align:right">${mpesaShortcode}</td></tr>
-         <tr><td colspan="2">Account No.</td><td style="text-align:right">${mpesaAccount}</td></tr>`
-      : ""}
+    ${(receipt.method === "Cash" || receipt.method === "Split") ? `<tr><td colspan="2">Paid</td><td style="text-align:right">KES ${(receipt.amountPaid || 0).toLocaleString()}</td></tr><tr><td colspan="2"><b>Change</b></td><td style="text-align:right"><b>KES ${(receipt.change || 0).toLocaleString()}</b></td></tr>` : ""}
+    ${receipt.paymentRef ? `<tr><td colspan="2">M-Pesa Ref</td><td style="text-align:right;color:#1565c0">${receipt.paymentRef}</td></tr>` : ""}
+    ${receipt.customerPhone ? `<tr><td colspan="2">Phone</td><td style="text-align:right">${receipt.customerPhone}</td></tr>` : ""}
   </table>
-  <div class="footer">Thank you for shopping at ${storeName}!<br/>${storeLoc}</div>
-  </body></html>`;
-
-  const w = window.open("","_blank","width=420,height=600");
-  w.document.write(html); w.document.close(); w.focus();
-  setTimeout(() => w.print(), 500);
+  <div class="q"><img src="${qr}" width="80" height="80"/><br/><small>Scan to verify · ${receipt.txn}</small></div>
+  <div class="f">Thank you for shopping at ${nm}!</div></body></html>`);
+  w.document.close(); w.focus(); setTimeout(() => w.print(), 500);
 }
 
-// ── Category drill-down state machine ────────────────────────────
-// level: "top" → "brand" → "subtype"(shoes only) → "products"
 function useCategoryNav() {
-  const [topType, setTopType]     = useState(null);
-  const [brands, setBrands]       = useState([]);
-  const [subtypes, setSubtypes]   = useState([]);
-  const [selBrand, setSelBrand]   = useState(null);
+  const [topType, setTopType] = useState(null);
+  const [brands, setBrands] = useState([]);
+  const [subtypes, setSubtypes] = useState([]);
+  const [selBrand, setSelBrand] = useState(null);
   const [selSubtype, setSelSubtype] = useState(null);
-  const [catLoading, setCatLoading] = useState(false);
-
+  const [loading, setLoading] = useState(false);
   const goTop = () => { setTopType(null); setSelBrand(null); setSelSubtype(null); setBrands([]); setSubtypes([]); };
   const goBrands = tt => {
-    setTopType(tt); setSelBrand(null); setSelSubtype(null); setSubtypes([]);
-    setCatLoading(true);
-    categoriesAPI.getBrands({ top_type: tt }).then(r => setBrands(r.data||[])).catch(()=>setBrands([])).finally(()=>setCatLoading(false));
+    setTopType(tt); setSelBrand(null); setSelSubtype(null); setSubtypes([]); setLoading(true);
+    categoriesAPI.getBrands({ top_type: tt }).then(r => setBrands(r.data || [])).catch(() => setBrands([])).finally(() => setLoading(false));
   };
-  const goSubtypes = brand => {
-    setSelBrand(brand); setSelSubtype(null);
-    if (brand.top_type === "shoes") {
-      setCatLoading(true);
-      categoriesAPI.getSubtypes({ brand_id: brand.id }).then(r => setSubtypes(r.data||[])).catch(()=>setSubtypes([])).finally(()=>setCatLoading(false));
+  const goSubtypes = b => {
+    setSelBrand(b); setSelSubtype(null);
+    if (b?.top_type === "shoes") {
+      setLoading(true);
+      categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
     }
   };
-
-  const level = topType === null ? "top"
-    : selBrand === null ? "brands"
-    : (topType === "shoes" && selSubtype === null) ? "subtypes"
-    : "products";
-
-  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype, level, catLoading, goTop, goBrands, goSubtypes };
+  const level = topType === null ? "top" : selBrand === null ? "brands" : (topType === "shoes" && selSubtype === null) ? "subtypes" : "products";
+  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype, level, loading, goTop, goBrands, goSubtypes };
 }
 
 export default function POS() {
@@ -114,660 +66,516 @@ export default function POS() {
   const store = useStore();
   const cat = useCategoryNav();
 
-  const [catalog, setCatalog]           = useState([]);
-  const [catProductLoading, setCatProductLoading] = useState(false);
-  const [search, setSearch]             = useState("");
-  const [cart, setCart]                 = useState([]);
-  const [payMethod, setPayMethod]       = useState("cash");
-  const [amountPaid, setAmountPaid]     = useState("");
-  const [mpesaPhone, setMpesaPhone]     = useState("");
-  const [mpesaStep, setMpesaStep]       = useState(null);
-  const [mpesaRef, setMpesaRef]         = useState("");
-  const [mpesaCheckoutId, setMpesaCheckoutId] = useState(null);
-  const [mpesaCountdown, setMpesaCountdown]   = useState(120);
-  const [receipt, setReceipt]           = useState(null);
-  const [checkoutErr, setCheckoutErr]   = useState("");
-  const pollRef      = useRef(null);
-  const countdownRef = useRef(null);
-  const lastCreatedSaleCommissionRef = useRef(0);
-  const lastPendingMpesaSaleIdRef = useRef(null);
-  const lastItemsRef = useRef([]);
+  const [catalog, setCatalog] = useState([]);
+  const [catLoading, setCatLoading] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [payMethod, setPayMethod] = useState("cash");
+  const [amountPaid, setAmountPaid] = useState("");
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [tumaStep, setTumaStep] = useState(null);
+  const [payRef, setPayRef] = useState("");
+  const [checkoutId, setCheckoutId] = useState(null);
+  const [countdown, setCountdown] = useState(90);
+  const [receipt, setReceipt] = useState(null);
+  const [checkoutErr, setCheckoutErr] = useState("");
+  const [activeTab, setActiveTab] = useState("search");
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [favorites, setFavorites] = useState([]);
+  const [skuInput, setSkuInput] = useState("");
+  const [skuErr, setSkuErr] = useState("");
 
-  // Load products when category drill-down reaches "products" level
+  const pollRef = useRef(null);
+  const cdRef = useRef(null);
+  const saleCommRef = useRef(0);
+  const pendingSaleRef = useRef(null);
+  const lastItemsRef = useRef([]);
+  const searchRef = useRef(null);
+  const skuRef = useRef(null);
+  const debRef = useRef(null);
+
+  useModalBackButton(!!tumaStep, () => { if (tumaStep !== "confirming") setTumaStep(null); });
+  useModalBackButton(!!receipt, () => setReceipt(null));
+
+  useEffect(() => {
+    productsAPI.getFavorites({ in_stock: "true" }).then(r => setFavorites(r.data || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    try {
+      const items = JSON.parse(sessionStorage.getItem("pos_quick_add") || "[]");
+      if (items.length) { items.forEach(p => addToCart({ ...p, minPrice: parseFloat(p.min_price) })); sessionStorage.removeItem("pos_quick_add"); }
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     if (cat.level !== "products") { setCatalog([]); return; }
-    setCatProductLoading(true);
-    const params = cat.topType === "shoes"
-      ? { sub_type_id: cat.selSubtype.id }
-      : { brand_id: cat.selBrand.id };
-    productsAPI.getAll(params)
-      .then(r => setCatalog(r.data || []))
-      .catch(() => setCatalog([]))
-      .finally(() => setCatProductLoading(false));
+    setCatLoading(true);
+    const p = cat.topType === "shoes" ? { sub_type_id: cat.selSubtype.id } : { brand_id: cat.selBrand.id };
+    productsAPI.getAll(p).then(r => setCatalog(r.data || [])).catch(() => setCatalog([])).finally(() => setCatLoading(false));
   }, [cat.level, cat.selSubtype?.id, cat.selBrand?.id]);
 
-  const filtered = catalog.filter(p =>
-    !search ||
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.brand.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    clearTimeout(debRef.current);
+    if (!searchQ.trim()) { setSearchResults([]); return; }
+    setSearching(true);
+    debRef.current = setTimeout(async () => {
+      try { const r = await productsAPI.search(searchQ.trim(), { in_stock: "false" }); setSearchResults(r.data || []); }
+      catch (_) { setSearchResults([]); } finally { setSearching(false); }
+    }, 180);
+    return () => clearTimeout(debRef.current);
+  }, [searchQ]);
 
-  const addToCart = item => {
-    setCart(prev => {
-      const ex = prev.find(c => c.id === item.id);
-      if (ex) {
-        if (ex.qty >= item.stock) return prev;
-        return prev.map(c => c.id===item.id ? {...c, qty:c.qty+1} : c);
-      }
-      return [...prev, {...item, qty:1, sellingPrice:"", minPrice:parseFloat(item.min_price)}];
-    });
-  };
-
-  const removeFromCart  = id => setCart(prev => prev.filter(c => c.id !== id));
-  const changeQty       = (id, delta) => setCart(prev => prev.map(c => {
-    if (c.id !== id) return c;
-    const nq = c.qty + delta;
-    if (nq < 1 || nq > c.stock) return c;
-    return {...c, qty:nq};
-  }));
-  const setSellingPrice = (id, val) => setCart(prev => prev.map(c => c.id===id ? {...c, sellingPrice:val} : c));
-  const validateSellingPrice = id => setCart(prev => prev.map(c => {
-    if (c.id !== id) return c;
-    const n = num(c.sellingPrice);
-    return {...c, sellingPrice: n < c.minPrice ? c.minPrice : n};
-  }));
-
-  const cartReady       = cart.filter(c => num(c.sellingPrice) >= c.minPrice);
-  const subtotal        = cartReady.reduce((s,c) => s + num(c.sellingPrice)*c.qty, 0);
-  const totalCommission = cartReady.reduce((s,c) => s + calcItem({...c,sellingPrice:num(c.sellingPrice)}, commissionRate).commission, 0);
-  const paidAmt         = num(amountPaid);
-  const change          = paidAmt - subtotal;
-  const allPriced       = cart.length > 0 && cart.every(c => num(c.sellingPrice) >= c.minPrice);
-
-  const applyCatalogStockDeduction = items => {
-    setCatalog(prev => prev.map(p => {
-      const line = items.find(l => l.product_id === p.id);
-      if (!line) return p;
-      return {...p, stock: Math.max(0, (parseInt(p.stock,10)||0) - line.qty)};
-    }));
-  };
-
-  // M-Pesa polling
-  const startPolling = checkoutId => {
-    let attempts = 0;
-    const MAX = 50;
-    const tick = async () => {
-      attempts++;
-      try {
-        const res = await mpesaAPI.getStatus(checkoutId);
-        const { status, mpesa_ref } = res.data;
-        if (status === "success") {
-          clearInterval(pollRef.current);
-          setMpesaRef(mpesa_ref || "");
-          applyCatalogStockDeduction(lastItemsRef.current || []);
-          setMpesaStep("confirmed");
-          return;
-        }
-        if (status === "failed") { clearInterval(pollRef.current); setMpesaStep("failed"); return; }
-        if (attempts >= MAX) { clearInterval(pollRef.current); setMpesaStep("failed"); }
-      } catch (_) {
-        if (attempts >= MAX) { clearInterval(pollRef.current); setMpesaStep("failed"); }
+  useEffect(() => {
+    const fn = e => {
+      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes(e.target.tagName)) {
+        e.preventDefault(); setActiveTab("search"); setTimeout(() => searchRef.current?.focus(), 50);
       }
     };
-    pollRef.current = setInterval(async () => {
-      await tick();
-      if (attempts === 15 && pollRef.current) { clearInterval(pollRef.current); pollRef.current = setInterval(tick, 4000); }
-    }, 2000);
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, []);
+
+  const addToCart = useCallback(item => {
+    setCart(prev => {
+      const ex = prev.find(c => c.id === item.id);
+      if (ex) { if (ex.qty >= item.stock) return prev; return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c); }
+      return [...prev, { ...item, qty: 1, sellingPrice: "", minPrice: parseFloat(item.min_price || item.minPrice || 0) }];
+    });
+    setSearchQ("");
+  }, []);
+
+  const removeFromCart = id => setCart(p => p.filter(c => c.id !== id));
+  const changeQty = (id, d) => setCart(p => p.map(c => { if (c.id !== id) return c; const q = c.qty + d; if (q < 1 || q > c.stock) return c; return { ...c, qty: q }; }));
+  const setSP = (id, v) => setCart(p => p.map(c => c.id === id ? { ...c, sellingPrice: v } : c));
+  const validateSP = id => setCart(p => p.map(c => { if (c.id !== id) return c; const n = num(c.sellingPrice); return { ...c, sellingPrice: n < c.minPrice ? c.minPrice : n }; }));
+
+  const addBySKU = async () => {
+    const sku = skuInput.trim().toUpperCase(); if (!sku) return; setSkuErr("");
+    try {
+      const r = await productsAPI.search(sku, { in_stock: "false" });
+      const m = (r.data || []).find(p => p.sku.toUpperCase() === sku);
+      if (m) { addToCart({ ...m, minPrice: parseFloat(m.min_price) }); setSkuInput(""); skuRef.current?.focus(); }
+      else setSkuErr(`SKU "${sku}" not found`);
+    } catch (_) { setSkuErr("Search failed"); }
   };
 
-  // Countdown timer
+  const applyStockDed = items => setCatalog(p => p.map(pr => { const l = items.find(i => i.product_id === pr.id); return l ? { ...pr, stock: Math.max(0, (parseInt(pr.stock, 10) || 0) - l.qty) } : pr; }));
+
+  const startPoll = cid => {
+    let att = 0;
+    const tick = async () => {
+      att++;
+      try {
+        const r = await tumaAPI.getStatus(cid);
+        const { status, payment_ref } = r.data;
+        if (status === "success") { clearInterval(pollRef.current); setPayRef(payment_ref || ""); applyStockDed(lastItemsRef.current || []); setTumaStep("confirmed"); return; }
+        if (status === "failed" || status === "timeout") { clearInterval(pollRef.current); setTumaStep("failed"); return; }
+        if (att >= 40) { clearInterval(pollRef.current); setTumaStep("timeout"); }
+      } catch (_) { if (att >= 40) { clearInterval(pollRef.current); setTumaStep("timeout"); } }
+    };
+    pollRef.current = setInterval(tick, 2500);
+  };
+
   useEffect(() => {
-    if (mpesaStep === "confirming") {
-      setMpesaCountdown(120);
-      countdownRef.current = setInterval(() => setMpesaCountdown(s => { if (s <= 1) { clearInterval(countdownRef.current); return 0; } return s-1; }), 1000);
-    } else {
-      clearInterval(countdownRef.current);
-    }
-    return () => clearInterval(countdownRef.current);
-  }, [mpesaStep]);
+    if (tumaStep === "confirming") {
+      setCountdown(90);
+      cdRef.current = setInterval(() => setCountdown(s => s <= 1 ? (clearInterval(cdRef.current), 0) : s - 1), 1000);
+    } else clearInterval(cdRef.current);
+    return () => clearInterval(cdRef.current);
+  }, [tumaStep]);
+  useEffect(() => () => { clearInterval(pollRef.current); clearInterval(cdRef.current); }, []);
 
-  useEffect(() => () => { clearInterval(pollRef.current); clearInterval(countdownRef.current); }, []);
+  const cartReady = cart.filter(c => num(c.sellingPrice) >= c.minPrice);
+  const subtotal = cartReady.reduce((s, c) => s + num(c.sellingPrice) * c.qty, 0);
+  const totalComm = cartReady.reduce((s, c) => s + calcItem({ ...c, sellingPrice: num(c.sellingPrice) }, commissionRate).commission, 0);
+  const paidAmt = num(amountPaid);
+  const change = paidAmt - subtotal;
+  const allPriced = cart.length > 0 && cart.every(c => num(c.sellingPrice) >= c.minPrice);
 
-  const doCheckout = async (method) => {
-    const commissionSnapshot = cartReady.reduce((s,c) => s + calcItem({...c,sellingPrice:num(c.sellingPrice)}, commissionRate).commission, 0);
+  const doCheckout = async method => {
     const items = cart.map(c => ({ product_id: c.id, qty: c.qty, selling_price: num(c.sellingPrice) }));
-
-    // Offline path
+    setCheckoutErr("");
     if (!isOnline) {
-      const localId = `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const offlineSale = { localId, items, payment_method: method, amount_paid: paidAmt, cashier_id: user?.id, cashier_name: user?.name, commission: commissionSnapshot, createdAt: new Date().toISOString() };
-      await queueSale(offlineSale);
-      for (const line of items) await updateCachedProductStock(line.product_id, line.qty);
-      applyCatalogStockDeduction(items);
-      if (refreshPendingCount) refreshPendingCount();
-      setReceipt({ txn: localId, items: cart.map(c => ({...c, sellingPrice:num(c.sellingPrice)})), subtotal, method, amountPaid: paidAmt, change: Math.max(0, paidAmt-subtotal), date: new Date(), cashier: user?.name, mpesaRef: "", cashierCommission: commissionSnapshot, isOffline: true });
-      setCart([]); setAmountPaid(""); setMpesaPhone("");
-      return;
+      const lid = `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      await queueSale({ localId: lid, items, payment_method: method, amount_paid: paidAmt, cashier_id: user?.id, cashier_name: user?.name, commission: totalComm, createdAt: new Date().toISOString() });
+      for (const l of items) await updateCachedProductStock(l.product_id, l.qty);
+      applyStockDed(items); if (refreshPendingCount) refreshPendingCount();
+      setReceipt({ txn: lid, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method, amountPaid: paidAmt, change: Math.max(0, paidAmt - subtotal), date: new Date(), cashier: user?.name, paymentRef: "", cashierCommission: totalComm, isOffline: true, customerPhone: "" });
+      setCart([]); setAmountPaid(""); setMpesaPhone(""); return;
     }
-
-    // Online path
     try {
-      const mpesaPortion = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      const res = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, mpesa_phone: mpesaPhone || undefined, mpesa_portion: mpesaPortion || undefined });
-      const { txn_id, selling_total, change_given, commission, sale_id } = res.data;
-      lastCreatedSaleCommissionRef.current = Number(commission) || 0;
-      lastPendingMpesaSaleIdRef.current = (method==="M-Pesa"||(method==="Split"&&mpesaPortion>0)) && sale_id ? sale_id : null;
+      const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
+      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, mpesa_phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
+      const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
+      saleCommRef.current = Number(commission) || 0;
+      pendingSaleRef.current = (method === "M-Pesa" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
+      if (method === "M-Pesa" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
+      else applyStockDed(items);
 
-      if (method==="M-Pesa"||(method==="Split"&&mpesaPortion>0)) {
-        lastItemsRef.current = items;
-      } else {
-        applyCatalogStockDeduction(items);
-      }
-
-      if (method === "M-Pesa" && mpesaPhone) {
+      if ((method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone) {
         try {
-          const stkRes = await mpesaAPI.stkPush(sale_id, mpesaPhone, selling_total);
-          setMpesaCheckoutId(stkRes.data.checkout_request_id);
-          setMpesaStep("confirming");
-          startPolling(stkRes.data.checkout_request_id);
-        } catch (stkErr) {
-          setCheckoutErr(stkErr.response?.data?.error || stkErr.message || "STK push failed");
-          setMpesaStep(null);
+          const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
+          setCheckoutId(sr.data.checkout_request_id); setTumaStep("confirming"); startPoll(sr.data.checkout_request_id);
+        } catch (e) {
+          const msg = e.response?.data?.error || e.message || "STK push failed";
+          setCheckoutErr(msg.includes("STK_CANCEL_BLOCKED") ? "🚫 This number is blocked due to repeated cancellations. Contact support." : msg);
+          setTumaStep(null);
         }
         return;
       }
-
-      if (method === "Split" && mpesaPortion > 0 && mpesaPhone) {
-        try {
-          const stkRes = await mpesaAPI.stkPush(sale_id, mpesaPhone, mpesaPortion);
-          setMpesaCheckoutId(stkRes.data.checkout_request_id);
-          setMpesaStep("confirming");
-          startPolling(stkRes.data.checkout_request_id);
-        } catch (stkErr) {
-          setCheckoutErr(stkErr.response?.data?.error || stkErr.message || "STK push failed");
-          setMpesaStep(null);
-        }
-        return;
-      }
-
-      // Cash or Split where cash covers full
-      setReceipt({ txn: txn_id, items: cart.map(c=>({...c,sellingPrice:num(c.sellingPrice)})), subtotal: selling_total, method, amountPaid: paidAmt, change: Math.max(0, change_given), date: new Date(), cashier: user?.name, mpesaRef: "", cashierCommission: Number(commission||commissionSnapshot)||0, isOffline: false });
+      for (const l of items) productsAPI.recordUsed(l.product_id);
+      setReceipt({ txn: txn_id, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal: selling_total, method, amountPaid: paidAmt, change: Math.max(0, change_given), date: new Date(), cashier: user?.name, paymentRef: "", cashierCommission: Number(commission) || totalComm, isOffline: false, customerPhone: mpesaPhone || "" });
       setCart([]); setAmountPaid(""); setMpesaPhone("");
-
-    } catch (err) {
-      setCheckoutErr(err.response?.data?.error || "Sale failed. Please try again.");
-      setMpesaStep(null);
-    }
+    } catch (e) { setCheckoutErr(e.response?.data?.error || "Sale failed. Please try again."); }
   };
 
-  const completeMpesaSale = async () => {
-    const saleId     = lastPendingMpesaSaleIdRef.current;
-    const checkoutId = mpesaCheckoutId;
-    const refCode    = mpesaRef.trim();
+  const completeTuma = async () => {
     clearInterval(pollRef.current);
+    const saleId = pendingSaleRef.current, cid = checkoutId, ref = payRef.trim();
     try {
-      if (refCode) await mpesaAPI.confirmByRef(checkoutId, saleId, refCode);
-      else         await mpesaAPI.confirmManual(checkoutId, saleId);
-      applyCatalogStockDeduction(lastItemsRef.current || []);
-      lastItemsRef.current = [];
-    } catch (err) {
-      const msg = err.response?.data?.error || '';
-      if (!msg.includes('completed') && !msg.includes('Already')) console.warn('[completeMpesaSale] confirm error:', msg);
-    }
-    lastPendingMpesaSaleIdRef.current = null;
-    const cashierComm = lastCreatedSaleCommissionRef.current || totalCommission;
-    setReceipt({ txn: refCode || `TXN-MPE-${Date.now()}`, items: cart.map(c=>({...c,sellingPrice:num(c.sellingPrice)})), subtotal, method:"M-Pesa", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, mpesaRef: refCode, cashierCommission: cashierComm, isOffline: false });
-    setCart([]); setAmountPaid(""); setMpesaPhone("");
-    setMpesaStep(null); setMpesaCheckoutId(null); setMpesaRef("");
+      if (ref) await tumaAPI.confirmByRef(cid, saleId, ref); else await tumaAPI.confirmManual(cid, saleId);
+      applyStockDed(lastItemsRef.current || []); lastItemsRef.current = [];
+    } catch (e) { const m = e.response?.data?.error || ""; if (!m.includes("completed")) console.warn("[tuma]", m); }
+    pendingSaleRef.current = null;
+    setReceipt({ txn: ref || `TXN-${Date.now()}`, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method: "M-Pesa", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, paymentRef: ref, cashierCommission: saleCommRef.current || totalComm, isOffline: false, customerPhone: mpesaPhone });
+    setCart([]); setAmountPaid(""); setMpesaPhone(""); setTumaStep(null); setCheckoutId(null); setPayRef("");
   };
 
   const checkout = () => {
     if (!allPriced) return;
     if (payMethod === "cash" && paidAmt < subtotal) return;
-    if (payMethod === "mpesa") { setMpesaStep("sending"); setTimeout(() => doCheckout("M-Pesa"), 1000); return; }
-    if (payMethod === "split") {
-      if (paidAmt <= 0) return;
-      const mpesaPortion = subtotal - paidAmt;
-      if (mpesaPortion > 0 && !mpesaPhone) return;
-      setMpesaStep("sending");
-      setTimeout(() => doCheckout("Split"), 1000);
-      return;
-    }
-    doCheckout("Cash");
+    if (payMethod === "split" && paidAmt <= 0) return;
+    if (payMethod === "cash") { doCheckout("Cash"); return; }
+    setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800);
   };
 
-  // ── M-Pesa overlay ────────────────────────────────────────────
-  if (mpesaStep) return (
-    <div className="pos-page">
-      <div className="mpesa-overlay">
-        <div className="mpesa-modal">
-          {mpesaStep === "sending" && (
-            <><div className="mpesa-spinner"/><div className="mpesa-title">Sending STK Push…</div>
-            <div className="mpesa-sub">{payMethod==="split" ? `Requesting KES ${fmt(subtotal-paidAmt)} via M-Pesa` : `Preparing M-Pesa for ${fmt(subtotal)}`}</div></>
-          )}
-          {mpesaStep === "confirming" && (
-            <>
-              <div className="mpesa-spinner"/>
-              <div className="mpesa-title">Awaiting M-Pesa Confirmation</div>
-              <div className="mpesa-sub">Waiting for payment on customer's phone… ({mpesaCountdown}s)</div>
-              {payMethod === "split" && paidAmt > 0 && (
-                <div className="pos-split-breakdown" style={{margin:"12px 0"}}>
-                  <div className="pos-split-row"><span>💵 Cash collected</span><strong style={{color:"var(--green)"}}>{fmt(paidAmt)}</strong></div>
-                  <div className="pos-split-row pos-split-row--mpesa"><span>📱 M-Pesa pending</span><strong style={{color:"var(--teal)"}}>{fmt(subtotal-paidAmt)}</strong></div>
-                </div>
-              )}
-              <div className="mpesa-paybill-card">
-                <div className="mpesa-paybill-row"><span>Paybill</span><strong>{store.mpesa_shortcode}</strong></div>
-                <div className="mpesa-paybill-row"><span>Account No.</span><strong>{store.mpesa_account}</strong></div>
-                <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(payMethod==="split" ? Math.max(0,subtotal-paidAmt) : subtotal)}</strong></div>
-              </div>
-
-              {/* Enforce: must enter M-Pesa code OR wait for automatic confirmation */}
-              <div className="mpesa-manual-ref-section">
-                <div className="mpesa-alt-note">
-                  💬 Once customer pays, enter the M-Pesa confirmation code from their SMS to complete the sale:
-                </div>
-                <div style={{display:"flex",gap:8,marginTop:8,width:"100%"}}>
-                  <input
-                    className="pos-cash-input"
-                    style={{flex:1,textTransform:"uppercase",letterSpacing:1}}
-                    placeholder="e.g. RBK7X4Y2PQ"
-                    value={mpesaRef}
-                    onChange={e => setMpesaRef(e.target.value.toUpperCase())}
-                  />
-                  <button
-                    className="pos-checkout-btn"
-                    style={{background:"var(--green)",color:"#000",padding:"0 16px",flexShrink:0}}
-                    disabled={!mpesaRef.trim()}
-                    onClick={completeMpesaSale}
-                  >
-                    ✓ Confirm Code
-                  </button>
-                </div>
-                <div style={{marginTop:8,fontSize:11,color:"var(--text3)",textAlign:"center"}}>
-                  — OR —
-                </div>
-                <button
-                  className="pos-checkout-btn"
-                  style={{marginTop:4,background:"var(--bg3)",color:"var(--text)",border:"1px solid var(--border)",width:"100%"}}
-                  onClick={completeMpesaSale}
-                >
-                  ✓ Confirm Manually (no code — I verified payment)
-                </button>
-              </div>
-              <button className="lf-demo-toggle" style={{marginTop:8,width:"100%",justifyContent:"center"}} onClick={() => { clearInterval(pollRef.current); setMpesaStep(null); }}>
-                Cancel Sale
-              </button>
-            </>
-          )}
-          {mpesaStep === "confirmed" && (
-            <>
-              <div className="mpesa-success-icon">✓</div>
-              <div className="mpesa-title">Payment Confirmed!</div>
-              <div className="mpesa-sub">M-Pesa Ref: <strong>{mpesaRef}</strong></div>
-              <button className="pos-checkout-btn" style={{marginTop:16}} onClick={completeMpesaSale}>Continue → Receipt</button>
-            </>
-          )}
-          {mpesaStep === "failed" && (
-            <>
-              <div className="mpesa-fail-icon">✕</div>
-              <div className="mpesa-title">Payment Not Confirmed</div>
-              <div className="mpesa-sub">Customer may have cancelled or timed out.</div>
-              <div style={{display:"flex",gap:10,marginTop:16}}>
-                <button className="pos-checkout-btn" style={{flex:1,background:"var(--bg3)",color:"var(--text)",border:"1px solid var(--border)"}} onClick={() => setMpesaStep(null)}>Back to Cart</button>
-                <button className="pos-checkout-btn" style={{flex:1,background:"var(--green)",color:"#000"}} onClick={completeMpesaSale}>Mark Paid</button>
-              </div>
-            </>
-          )}
+  // Tuma overlay
+  if (tumaStep) return (
+    <div className="pos-page"><div className="mpesa-overlay"><div className="mpesa-modal">
+      {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
+      {tumaStep === "confirming" && <>
+        <div className="mpesa-spinner" />
+        <div className="mpesa-title">Awaiting Payment</div>
+        <div className="mpesa-sub">Waiting on customer's phone… ({countdown}s)</div>
+        <div className="mpesa-paybill-card">
+          <div className="mpesa-paybill-row"><span>Paybill</span><strong>{store.mpesa_shortcode || "880100"}</strong></div>
+          <div className="mpesa-paybill-row"><span>Account</span><strong>{store.mpesa_account || "505008"}</strong></div>
+          <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}</strong></div>
         </div>
-      </div>
-    </div>
+        <div className="mpesa-manual-ref-section">
+          <div className="mpesa-alt-note">Enter M-Pesa receipt code from customer's SMS:</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, width: "100%" }}>
+            <input className="pos-cash-input" style={{ flex: 1, textTransform: "uppercase", letterSpacing: 1 }} placeholder="e.g. RBK7X4Y2PQ" value={payRef} onChange={e => setPayRef(e.target.value.toUpperCase())} />
+            <button className="pos-checkout-btn" style={{ background: "var(--green)", color: "#000", padding: "0 16px", flexShrink: 0 }} disabled={!payRef.trim()} onClick={completeTuma}>✓ Confirm</button>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text3)", textAlign: "center" }}>— OR wait for automatic confirmation —</div>
+          <button className="pos-checkout-btn" style={{ marginTop: 4, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)", width: "100%" }} onClick={completeTuma}>✓ Confirm Manually</button>
+        </div>
+        <button style={{ marginTop: 8, width: "100%", background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 13 }} onClick={() => { clearInterval(pollRef.current); setTumaStep(null); }}>Cancel Sale</button>
+      </>}
+      {tumaStep === "confirmed" && <>
+        <div className="mpesa-success-icon">✓</div>
+        <div className="mpesa-title">Payment Confirmed!</div>
+        <div className="mpesa-sub">Ref: <strong>{payRef}</strong></div>
+        <button className="pos-checkout-btn" style={{ marginTop: 16 }} onClick={completeTuma}>Continue → Receipt</button>
+      </>}
+      {(tumaStep === "failed" || tumaStep === "timeout") && <>
+        <div className="mpesa-fail-icon">✕</div>
+        <div className="mpesa-title">{tumaStep === "timeout" ? "Payment Timed Out" : "Payment Not Confirmed"}</div>
+        <div className="mpesa-sub">Customer may have cancelled or not responded.</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Back to Cart</button>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--green)", color: "#000" }} onClick={completeTuma}>Mark Paid</button>
+        </div>
+      </>}
+    </div></div></div>
   );
 
-  // ── Receipt screen ────────────────────────────────────────────
+  // Receipt
   if (receipt) return (
-    <div className="pos-page">
-      <div className="receipt-overlay">
-        <div className="receipt-card">
-          <div className="receipt-header">
-            <div className="receipt-logo">PW</div>
-            <div><div className="receipt-title">{store.store_name}</div><div className="receipt-sub">{store.store_location} · {receipt.date.toLocaleString("en-KE")}</div></div>
-            <div className="receipt-check">✓</div>
-          </div>
-          <div className="receipt-txn">{receipt.txn}</div>
-          <div className="receipt-cashier">Served by: {receipt.cashier}</div>
-          {receipt.isOffline && <div className="receipt-offline-badge">📴 Saved offline — will sync when internet returns</div>}
-          <div className="receipt-items">
-            {receipt.items.map((c,i) => (
-              <div key={i} className="receipt-item">
-                <span>{c.name} Sz{c.size} × {c.qty}</span>
-                <span className="receipt-item-price">{fmt((c.sellingPrice||num(c.sellingPrice)) * c.qty)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="receipt-divider"/>
-          <div className="receipt-row"><span>Total</span><strong>{fmt(receipt.subtotal)}</strong></div>
-          <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method==="Cash"?"cash":receipt.method==="M-Pesa"?"m-pesa":"split"}`}>{receipt.method}</span></div>
-          {(receipt.method==="Cash"||receipt.method==="Split") && <>
-            <div className="receipt-row"><span>Amount Paid</span><span>{fmt(receipt.amountPaid)}</span></div>
-            <div className="receipt-row"><span>Change</span><strong style={{color:"var(--green)"}}>{fmt(receipt.change)}</strong></div>
-          </>}
-          {receipt.method==="M-Pesa"&&receipt.mpesaRef && (
-            <div className="receipt-row"><span>M-Pesa Ref</span><span style={{color:"var(--teal)",fontWeight:600}}>{receipt.mpesaRef}</span></div>
-          )}
-          {(receipt.cashierCommission??0) > 0 && (
-            <div className="receipt-commission-screen">💰 Your commission: <strong>{fmt(receipt.cashierCommission)}</strong></div>
-          )}
-          <div style={{display:"flex",gap:10,marginTop:20}}>
-            <button className="pos-checkout-btn" style={{flex:1,background:"var(--bg3)",color:"var(--text)",border:"1px solid var(--border)"}} onClick={() => printReceipt(receipt, store)}>🖨 Print</button>
-            <button className="pos-checkout-btn" style={{flex:1}} onClick={() => setReceipt(null)}>New Sale ↩</button>
-          </div>
-        </div>
+    <div className="pos-page"><div className="receipt-overlay"><div className="receipt-card">
+      <div className="receipt-header">
+        <div className="receipt-logo">PW</div>
+        <div><div className="receipt-title">{store.store_name || "Permic Men's Wear"}</div><div className="receipt-sub">{store.store_location} · {receipt.date.toLocaleString("en-KE")}</div></div>
+        <div className="receipt-check">✓</div>
       </div>
-    </div>
+      <div className="receipt-txn">{receipt.txn}</div>
+      <div className="receipt-cashier">Served by: {receipt.cashier}</div>
+      {receipt.isOffline && <div className="receipt-offline-badge">📴 Saved offline — syncs on reconnect</div>}
+      <div className="receipt-items">
+        {receipt.items.map((c, i) => (
+          <div key={i} className="receipt-item">
+            <span>{c.name} Sz{c.size} × {c.qty}</span>
+            <span className="receipt-item-price">{fmt((c.sellingPrice || num(c.sellingPrice)) * c.qty)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="receipt-divider" />
+      <div className="receipt-row"><span>Total</span><strong>{fmt(receipt.subtotal)}</strong></div>
+      <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method === "Cash" ? "cash" : receipt.method === "M-Pesa" ? "m-pesa" : "split"}`}>{receipt.method}</span></div>
+      {(receipt.method === "Cash" || receipt.method === "Split") && <>
+        <div className="receipt-row"><span>Amount Paid</span><span>{fmt(receipt.amountPaid)}</span></div>
+        <div className="receipt-row"><span>Change</span><strong style={{ color: "var(--green)" }}>{fmt(receipt.change)}</strong></div>
+      </>}
+      {receipt.paymentRef && <div className="receipt-row"><span>M-Pesa Ref</span><span style={{ color: "var(--teal)", fontWeight: 600 }}>{receipt.paymentRef}</span></div>}
+      {receipt.customerPhone && <div className="receipt-row"><span>Phone</span><span>{receipt.customerPhone}</span></div>}
+      {(receipt.cashierCommission ?? 0) > 0 && <div className="receipt-commission-screen">💰 Your commission: <strong>{fmt(receipt.cashierCommission)}</strong></div>}
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => printReceipt(receipt, store)}>🖨 Print</button>
+        <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => setReceipt(null)}>New Sale ↩</button>
+      </div>
+    </div></div></div>
   );
 
-  // ── Main POS layout ────────────────────────────────────────────
+  // Main layout
   return (
     <div className="pos-page">
       <div className="pos-header">
-        <div>
-          <h1 className="page-title">Point of Sale</h1>
-          <p className="page-sub">Cashier: <strong>{user?.name}</strong> · {new Date().toLocaleDateString("en-KE")} · Commission: {commissionRate}%</p>
-        </div>
+        <h1 className="page-title">Point of Sale</h1>
+        <p className="page-sub">Cashier: <strong>{user?.name}</strong> · {new Date().toLocaleDateString("en-KE")} · Commission: {commissionRate}%</p>
       </div>
 
       <div className="pos-layout">
-        {/* ── Product Browser ── */}
+        {/* Product Browser */}
         <div className="pos-products">
-          {/* Search bar always visible */}
-          {cat.level === "products" && (
-            <div className="pos-search-wrap" style={{marginBottom:12}}>
-              <span className="pos-search-icon">🔍</span>
-              <input className="pos-search" placeholder="Search by name, SKU…" value={search} onChange={e => setSearch(e.target.value)}/>
-            </div>
-          )}
+          <div style={{ display: "flex", gap: 4, marginBottom: 12, background: "var(--bg3)", borderRadius: 10, padding: 4 }}>
+            {[["search", "🔍 Search"], ["sku", "📷 SKU/Scan"], ["category", "📂 Browse"]].map(([id, lbl]) => (
+              <button key={id} onClick={() => setActiveTab(id)} style={{ flex: 1, padding: "7px 4px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: activeTab === id ? "var(--bg1)" : "transparent", color: activeTab === id ? "var(--text1)" : "var(--text3)", boxShadow: activeTab === id ? "0 1px 4px rgba(0,0,0,.15)" : "none", transition: "all .15s" }}>{lbl}</button>
+            ))}
+          </div>
 
-          {/* LEVEL 1: top type selector */}
-          {cat.level === "top" && (
-            <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-              {[{t:"shoes",icon:"👟",label:"Shoes"},{t:"clothes",icon:"👕",label:"Clothes"}].map(({t,icon,label}) => (
-                <div key={t}
-                  className="panel-card"
-                  style={{flex:1,minWidth:140,cursor:"pointer",padding:24,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
-                  onClick={() => cat.goBrands(t)}
-                  onMouseEnter={e => e.currentTarget.style.borderColor="var(--teal)"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
-                >
-                  <div style={{fontSize:44,marginBottom:8}}>{icon}</div>
-                  <div style={{fontWeight:700,fontSize:15}}>{label}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* LEVEL 2: brands */}
-          {cat.level === "brands" && (
-            <>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-                <button className="tbl-btn" onClick={cat.goTop}>← Back</button>
-                <span style={{fontSize:12,color:"var(--text3)"}}>{cat.topType==="shoes"?"👟 Shoes":"👕 Clothes"} › Select brand</span>
+          {activeTab === "search" && (
+            <div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", background: "var(--bg2)", border: "2px solid var(--border)", borderRadius: 10, padding: "8px 12px", marginBottom: 10 }}>
+                <span>🔍</span>
+                <input ref={searchRef} value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Name, brand, color, size… (press /)" style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text1)", fontSize: 15 }} />
+                {searching && <span style={{ color: "var(--text3)", fontSize: 12 }}>…</span>}
+                {searchQ && <button onClick={() => setSearchQ("")} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 16 }}>✕</button>}
               </div>
-              {cat.catLoading ? <div style={{padding:30,textAlign:"center",color:"var(--text3)"}}>Loading…</div> : (
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-                  {cat.brands.map(b => (
-                    <div key={b.id}
-                      className="panel-card"
-                      style={{cursor:"pointer",padding:14,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
-                      onClick={() => cat.goSubtypes(b)}
-                      onMouseEnter={e => e.currentTarget.style.borderColor="var(--teal)"}
-                      onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
-                    >
-                      {b.photo_url
-                        ? <img src={b.photo_url} alt={b.name} style={{width:48,height:48,objectFit:"contain",margin:"0 auto 8px",display:"block"}}/>
-                        : <div style={{fontSize:32,marginBottom:8}}>{cat.topType==="shoes"?"👟":(CLOTH_ICONS[b.name]||"👕")}</div>
-                      }
-                      <div style={{fontWeight:700,fontSize:12}}>{b.name}</div>
-                    </div>
-                  ))}
-                  {cat.brands.length===0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:30,color:"var(--text3)"}}>No brands found</div>}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* LEVEL 3: shoe subtypes */}
-          {cat.level === "subtypes" && (
-            <>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-                <button className="tbl-btn" onClick={() => cat.goSubtypes(null) || cat.goBrands(cat.topType)}>← Back</button>
-                <span style={{fontSize:12,color:"var(--text3)"}}>👟 {cat.selBrand?.name} › Select model</span>
-              </div>
-              {cat.catLoading ? <div style={{padding:30,textAlign:"center",color:"var(--text3)"}}>Loading…</div> : (
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-                  {cat.subtypes.map(st => (
-                    <div key={st.id}
-                      className="panel-card"
-                      style={{cursor:"pointer",padding:14,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
-                      onClick={() => cat.setSelSubtype(st)}
-                      onMouseEnter={e => e.currentTarget.style.borderColor="var(--teal)"}
-                      onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
-                    >
-                      {st.photo_url
-                        ? <img src={st.photo_url} alt={st.name} style={{width:48,height:48,objectFit:"contain",margin:"0 auto 8px",display:"block"}}/>
-                        : <div style={{fontSize:32,marginBottom:8}}>👟</div>
-                      }
-                      <div style={{fontWeight:700,fontSize:12}}>{st.name}</div>
-                    </div>
-                  ))}
-                  {cat.subtypes.length===0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:30,color:"var(--text3)"}}>No models found</div>}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* LEVEL 4: products */}
-          {cat.level === "products" && (
-            <>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-                <button className="tbl-btn" onClick={() => {
-                  if (cat.topType==="shoes") cat.setSelSubtype(null);
-                  else cat.goSubtypes(null) || cat.goBrands(cat.topType);
-                  setCatalog([]);
-                }}>← Back</button>
-                <span style={{fontSize:12,color:"var(--text3)"}}>
-                  {cat.topType==="shoes"
-                    ? `👟 ${cat.selBrand?.name} › ${cat.selSubtype?.name}`
-                    : `👕 ${cat.selBrand?.name}`}
-                </span>
-              </div>
-
-              {catProductLoading
-                ? <div style={{textAlign:"center",padding:40,color:"var(--text3)"}}>Loading products…</div>
-                : (() => {
-                    const groups = {};
-                    filtered.forEach(item => {
-                      const key = `${item.brand}__${item.name}`;
-                      if (!groups[key]) groups[key] = [];
-                      groups[key].push(item);
-                    });
-                    const entries = Object.entries(groups);
-                    if (!entries.length) return <div style={{textAlign:"center",padding:40,color:"var(--text3)"}}><div style={{fontSize:32,marginBottom:8}}>🔍</div>No products found</div>;
-                    return (
-                      <div className="pos-grid">
-                        {entries.map(([key, variants]) => {
-                          const rep = variants[0];
-                          const anyInStock = variants.some(v => v.stock > 0);
-                          const sorted = [...variants].sort((a,b) => {
-                            const na=parseFloat(a.size), nb=parseFloat(b.size);
-                            if (!isNaN(na)&&!isNaN(nb)) return na-nb;
-                            return String(a.size).localeCompare(String(b.size));
-                          });
-                          const minPrice = Math.min(...variants.map(v => parseFloat(v.min_price)));
-                          const totalStock = variants.reduce((s,v) => s+v.stock, 0);
-                          const isClothing = cat.topType === "clothes";
-                          return (
-                            <div key={key} className={`pos-product-card pos-product-card--grouped ${!anyInStock?"pos-product-card--out":""}`}>
-                              {rep.photo_url
-                                ? <img src={rep.photo_url} alt={rep.name} className="pos-product-photo"/>
-                                : <div className="pos-product-photo-placeholder">{isClothing?(CLOTH_ICONS[rep.brand]||"👕"):"👟"}</div>
-                              }
-                              <div className="pos-product-brand">{rep.brand}</div>
-                              <div className="pos-product-name">{rep.name}</div>
-                              {rep.color && <div className="pos-product-color">🎨 {rep.color}</div>}
-                              <div className="pos-product-price-row">
-                                <span className="pos-product-price">Min: {fmt(minPrice)}</span>
-                                <span className={`pos-product-stock ${totalStock<=3?"pos-product-stock--low":""}`}>{totalStock} in stock</span>
-                              </div>
-                              <div className="pos-size-label">SIZES</div>
-                              <div className="pos-size-chips">
-                                {sorted.map(v => {
-                                  const inCart = cart.find(c => c.id===v.id);
-                                  const remaining = v.stock - (inCart?.qty||0);
-                                  const outOfStock = v.stock===0;
-                                  return (
-                                    <button key={v.id}
-                                      className={["pos-size-chip", outOfStock?"pos-size-chip--out":"", inCart?"pos-size-chip--active":"", !outOfStock&&remaining<=2?"pos-size-chip--low":""].filter(Boolean).join(" ")}
-                                      disabled={outOfStock}
-                                      title={outOfStock?"Out of stock":`${v.stock} in stock`}
-                                      onClick={() => { if (!outOfStock) addToCart({...v, minPrice:parseFloat(v.min_price)}); }}
-                                    >
-                                      <span className="pos-size-chip-sz">{v.size}</span>
-                                      <span className={`pos-size-chip-qty ${!outOfStock&&remaining<=2?"pos-size-chip-qty--low":""}`}>
-                                        {outOfStock?"✕":inCart?`${remaining} left`:`${v.stock}`}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
+              {searchQ ? (
+                <div style={{ background: "var(--bg2)", borderRadius: 10, border: "1px solid var(--border)", overflow: "hidden" }}>
+                  {searchResults.length === 0 && !searching && <div style={{ padding: 16, textAlign: "center", color: "var(--text3)" }}>No results for "{searchQ}"</div>}
+                  {searchResults.map(p => (
+                    <div key={p.id} onClick={() => addToCart({ ...p, minPrice: parseFloat(p.min_price) })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 8, background: "var(--bg3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0, overflow: "hidden" }}>
+                        {p.photo_url ? <img src={p.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} /> : (p.top_type === "shoes" ? "👟" : "👔")}
                       </div>
-                    );
-                  })()
-              }
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text1)" }}>{p.name}{p.fav_count > 0 && <span style={{ color: "var(--gold)", fontSize: 10, marginLeft: 4 }}>★</span>}</div>
+                        <div style={{ fontSize: 11, color: "var(--text3)" }}>{p.brand} · Sz {p.size} · {p.color || "—"}</div>
+                        <div style={{ fontSize: 10, color: "var(--text3)", fontFamily: "monospace" }}>{p.sku}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)" }}>{fmt(p.min_price)}</div>
+                        <div style={{ fontSize: 11, color: stockC(p.stock) }}>{p.stock > 0 ? `${p.stock} left` : "Out"}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : favorites.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8, fontWeight: 600 }}>★ FREQUENT ITEMS</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))", gap: 8 }}>
+                    {favorites.slice(0, 12).map(p => (
+                      <div key={p.id} onClick={() => addToCart({ ...p, minPrice: parseFloat(p.min_price) })} style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, cursor: "pointer", textAlign: "center" }}>
+                        <div style={{ fontSize: 26, marginBottom: 4 }}>{p.top_type === "shoes" ? "👟" : "👔"}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text1)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: "var(--text3)" }}>Sz {p.size}</div>
+                        <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700 }}>{fmt(p.min_price)}</div>
+                        <div style={{ fontSize: 10, color: stockC(p.stock) }}>{p.stock} in stock</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "sku" && (
+            <div>
+              <div style={{ marginBottom: 12, padding: 12, background: "var(--bg2)", borderRadius: 10, fontSize: 13, color: "var(--text2)" }}>
+                📷 Scan barcode or type SKU manually. Press <strong>Enter</strong> to add to cart.
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input ref={skuRef} value={skuInput} onChange={e => { setSkuInput(e.target.value.toUpperCase()); setSkuErr(""); }} onKeyDown={e => { if (e.key === "Enter") addBySKU(); }}
+                  placeholder="e.g. NK-AF1-WHT-40" autoFocus
+                  style={{ flex: 1, padding: "10px 14px", background: "var(--bg2)", border: "2px solid var(--border)", borderRadius: 10, color: "var(--text1)", fontSize: 15, fontFamily: "monospace", letterSpacing: 1, outline: "none" }} />
+                <button onClick={addBySKU} className="pos-checkout-btn" style={{ padding: "0 18px", flexShrink: 0 }}>Add</button>
+              </div>
+              {skuErr && <div style={{ marginTop: 8, color: "#e74c3c", fontSize: 13 }}>⚠ {skuErr}</div>}
+            </div>
+          )}
+
+          {activeTab === "category" && (
+            <>
+              {cat.level === "top" && (
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                  {[{ t: "shoes", icon: "👟", lbl: "Shoes" }, { t: "clothes", icon: "👕", lbl: "Clothes" }].map(({ t, icon, lbl }) => (
+                    <div key={t} style={{ flex: 1, minWidth: 140, cursor: "pointer", padding: 24, textAlign: "center", border: "2px solid var(--border)", borderRadius: 12, background: "var(--bg2)" }} onClick={() => cat.goBrands(t)}>
+                      <div style={{ fontSize: 44, marginBottom: 8 }}>{icon}</div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{lbl}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {cat.level === "brands" && (
+                <><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}><button className="tbl-btn" onClick={cat.goTop}>← Back</button><span style={{ fontSize: 12, color: "var(--text3)" }}>{cat.topType === "shoes" ? "👟" : "👕"} › Brand</span></div>
+                  {cat.loading ? <div style={{ padding: 30, textAlign: "center", color: "var(--text3)" }}>Loading…</div> : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
+                      {cat.brands.map(b => (
+                        <div key={b.id} style={{ cursor: "pointer", padding: 14, textAlign: "center", border: "2px solid var(--border)", borderRadius: 10, background: "var(--bg2)" }} onClick={() => cat.goSubtypes(b)}>
+                          <div style={{ fontSize: 30, marginBottom: 6 }}>{cat.topType === "shoes" ? "👟" : (CLOTH_ICONS[b.name] || "👕")}</div>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{b.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {cat.level === "subtypes" && (
+                <><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}><button className="tbl-btn" onClick={() => cat.goBrands(cat.topType)}>← Back</button><span style={{ fontSize: 12, color: "var(--text3)" }}>👟 {cat.selBrand?.name} › Model</span></div>
+                  {cat.loading ? <div style={{ padding: 30, textAlign: "center", color: "var(--text3)" }}>Loading…</div> : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
+                      {cat.subtypes.map(st => (
+                        <div key={st.id} style={{ cursor: "pointer", padding: 14, textAlign: "center", border: "2px solid var(--border)", borderRadius: 10, background: "var(--bg2)" }} onClick={() => cat.setSelSubtype(st)}>
+                          <div style={{ fontSize: 30, marginBottom: 6 }}>👟</div>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{st.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {cat.level === "products" && (
+                <>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+                    <button className="tbl-btn" onClick={() => { if (cat.topType === "shoes") cat.setSelSubtype(null); else cat.goBrands(cat.topType); setCatalog([]); }}>← Back</button>
+                    <span style={{ fontSize: 12, color: "var(--text3)" }}>{cat.topType === "shoes" ? `👟 ${cat.selBrand?.name} › ${cat.selSubtype?.name}` : `👕 ${cat.selBrand?.name}`}</span>
+                  </div>
+                  {catLoading ? <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>Loading…</div> : (() => {
+                    const groups = {};
+                    catalog.forEach(p => { const k = `${p.brand}__${p.name}`; if (!groups[k]) groups[k] = []; groups[k].push(p); });
+                    const entries = Object.entries(groups);
+                    if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No products found</div>;
+                    return <div className="pos-grid">{entries.map(([key, vars]) => {
+                      const rep = vars[0];
+                      const sorted = [...vars].sort((a, b) => { const na = parseFloat(a.size), nb = parseFloat(b.size); return (!isNaN(na) && !isNaN(nb)) ? na - nb : String(a.size).localeCompare(String(b.size)); });
+                      const minP = Math.min(...vars.map(v => parseFloat(v.min_price)));
+                      const totS = vars.reduce((s, v) => s + v.stock, 0);
+                      return (
+                        <div key={key} className={`pos-product-card pos-product-card--grouped ${!totS ? "pos-product-card--out" : ""}`}>
+                          {rep.photo_url ? <img src={rep.photo_url} alt={rep.name} className="pos-product-photo" /> : <div className="pos-product-photo-placeholder">{cat.topType === "clothes" ? (CLOTH_ICONS[rep.brand] || "👕") : "👟"}</div>}
+                          <div className="pos-product-brand">{rep.brand}</div>
+                          <div className="pos-product-name">{rep.name}</div>
+                          {rep.color && <div className="pos-product-color">🎨 {rep.color}</div>}
+                          <div className="pos-product-price-row"><span className="pos-product-price">Min: {fmt(minP)}</span><span className={`pos-product-stock ${totS <= 3 ? "pos-product-stock--low" : ""}`}>{totS}</span></div>
+                          <div className="pos-size-label">SIZES</div>
+                          <div className="pos-size-chips">
+                            {sorted.map(v => {
+                              const ic = cart.find(c => c.id === v.id);
+                              const rem = v.stock - (ic?.qty || 0);
+                              return <button key={v.id} className={["pos-size-chip", v.stock === 0 ? "pos-size-chip--out" : "", ic ? "pos-size-chip--active" : "", v.stock > 0 && rem <= 2 ? "pos-size-chip--low" : ""].filter(Boolean).join(" ")} disabled={v.stock === 0} onClick={() => { if (v.stock > 0) addToCart({ ...v, minPrice: parseFloat(v.min_price) }); }}>
+                                <span className="pos-size-chip-sz">{v.size}</span>
+                                <span className={`pos-size-chip-qty ${v.stock > 0 && rem <= 2 ? "pos-size-chip-qty--low" : ""}`}>{v.stock === 0 ? "✕" : ic ? `${rem}l` : `${v.stock}`}</span>
+                              </button>;
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}</div>;
+                  })()}
+                </>
+              )}
             </>
           )}
         </div>
 
-        {/* ── Cart ── */}
+        {/* Cart */}
         <div className="pos-cart">
           <div className="pos-cart-header">
             <span className="card-title">Current Sale</span>
-            {cart.length>0 && <button className="link-btn" onClick={() => setCart([])}>Clear</button>}
+            {cart.length > 0 && <button className="link-btn" onClick={() => setCart([])}>Clear</button>}
           </div>
-
-          {cart.length===0
-            ? <div className="pos-cart-empty"><div className="pos-cart-empty-icon">👟</div><p>Browse products and tap a size to add</p></div>
+          {cart.length === 0
+            ? <div className="pos-cart-empty"><div className="pos-cart-empty-icon">🛒</div><p>Search or scan a product to add</p></div>
             : <div className="pos-cart-items">
-                {cart.map(item => {
-                  const sp = num(item.sellingPrice);
-                  const { extraProfit, commission } = calcItem({...item,sellingPrice:sp}, commissionRate);
-                  const belowMin = item.sellingPrice !== "" && sp < item.minPrice;
-                  return (
-                    <div key={item.id} className="pos-cart-item">
-                      <div className="pos-cart-item-info">
-                        <div className="pos-cart-item-name">{item.name}</div>
-                        <div className="pos-cart-item-meta">Sz {item.size} · {item.sku} · Min: {fmt(item.minPrice)}</div>
-                        <div className="pos-selling-price-block">
-                          <label className="pos-selling-label">Selling Price <span style={{color:"var(--text3)",fontWeight:400}}>(per unit, KES)</span></label>
-                          <input
-                            className={`pos-selling-input ${belowMin?"pos-selling-input--error":sp>item.minPrice?"pos-selling-input--upsell":""}`}
-                            type="number" placeholder={`Min ${item.minPrice}`}
-                            value={item.sellingPrice}
-                            onChange={e => setSellingPrice(item.id, e.target.value)}
-                            onBlur={() => validateSellingPrice(item.id)}
-                          />
-                          {belowMin && <div className="pos-price-error">⚠ Cannot be less than {fmt(item.minPrice)}</div>}
-                          {!belowMin && extraProfit>0 && <div className="pos-commission-hint">💰 Extra: {fmt(extraProfit)} → Commission: <strong>{fmt(commission)}</strong></div>}
-                        </div>
+              {cart.map(item => {
+                const sp = num(item.sellingPrice);
+                const { extraProfit, commission } = calcItem({ ...item, sellingPrice: sp }, commissionRate);
+                const belowMin = item.sellingPrice !== "" && sp < item.minPrice;
+                return (
+                  <div key={item.id} className="pos-cart-item">
+                    <div className="pos-cart-item-info">
+                      <div className="pos-cart-item-name">{item.name}</div>
+                      <div className="pos-cart-item-meta">Sz {item.size} · {item.sku} · Min: {fmt(item.minPrice)}</div>
+                      <div className="pos-selling-price-block">
+                        <label className="pos-selling-label">Selling Price <span style={{ color: "var(--text3)", fontWeight: 400 }}>(per unit)</span></label>
+                        <input className={`pos-selling-input ${belowMin ? "pos-selling-input--error" : sp > item.minPrice ? "pos-selling-input--upsell" : ""}`} type="number" placeholder={`Min ${item.minPrice}`} value={item.sellingPrice} onChange={e => setSP(item.id, e.target.value)} onBlur={() => validateSP(item.id)} />
+                        {belowMin && <div className="pos-price-error">⚠ Cannot be less than {fmt(item.minPrice)}</div>}
+                        {!belowMin && extraProfit > 0 && <div className="pos-commission-hint">💰 Extra: {fmt(extraProfit)} → Commission: <strong>{fmt(commission)}</strong></div>}
                       </div>
-                      <div className="pos-cart-item-controls">
-                        <button className="qty-btn" onClick={() => changeQty(item.id,-1)}>−</button>
-                        <span className="qty-val">{item.qty}</span>
-                        <button className="qty-btn" onClick={() => changeQty(item.id,1)}>+</button>
-                        <button className="qty-btn qty-btn--del" onClick={() => removeFromCart(item.id)}>✕</button>
-                      </div>
-                      <div className="pos-cart-item-total">{sp>=item.minPrice?fmt(sp*item.qty):"—"}</div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="pos-cart-item-controls">
+                      <button className="qty-btn" onClick={() => changeQty(item.id, -1)}>−</button>
+                      <span className="qty-val">{item.qty}</span>
+                      <button className="qty-btn" onClick={() => changeQty(item.id, 1)}>+</button>
+                      <button className="qty-btn qty-btn--del" onClick={() => removeFromCart(item.id)}>✕</button>
+                    </div>
+                    <div className="pos-cart-item-total">{sp >= item.minPrice ? fmt(sp * item.qty) : "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
           }
-
           <div className="pos-cart-footer">
-            <div className="pos-subtotal"><span>Total Selling Price</span><strong>{fmt(subtotal)}</strong></div>
-            {totalCommission>0 && <div className="pos-commission-summary"><span>💰 Your commission ({commissionRate}%)</span><strong style={{color:"var(--gold)"}}>{fmt(totalCommission)}</strong></div>}
-
+            <div className="pos-subtotal"><span>Total</span><strong>{fmt(subtotal)}</strong></div>
+            {totalComm > 0 && <div className="pos-commission-summary"><span>💰 Commission ({commissionRate}%)</span><strong style={{ color: "var(--gold)" }}>{fmt(totalComm)}</strong></div>}
             <div className="pos-pay-methods">
-              {[["cash","💵 Cash"],["mpesa","📱 M-Pesa"],["split","⚡ Split"]].map(([m,label]) => (
-                <button key={m}
-                  className={`pos-pay-btn ${payMethod===m?"pos-pay-btn--active":""} ${m==="mpesa"&&!isOnline?"pos-pay-btn--disabled":""}`}
-                  onClick={() => { if(m==="mpesa"&&!isOnline) return; setPayMethod(m); }}
-                  title={m==="mpesa"&&!isOnline?"M-Pesa requires internet":undefined}
-                >
-                  {label}{m==="mpesa"&&!isOnline?" (offline)":""}
-                </button>
+              {[["cash", "💵 Cash"], ["mpesa", "📱 M-Pesa"], ["split", "⚡ Split"]].map(([m, lbl]) => (
+                <button key={m} className={`pos-pay-btn ${payMethod === m ? "pos-pay-btn--active" : ""} ${m === "mpesa" && !isOnline ? "pos-pay-btn--disabled" : ""}`} onClick={() => { if (m === "mpesa" && !isOnline) return; setPayMethod(m); }}>{lbl}{m === "mpesa" && !isOnline ? " (offline)" : ""}</button>
               ))}
             </div>
-
-            {!isOnline && <div className="pos-offline-note"><span>📴</span> Offline mode — Cash &amp; Split only. Sale will sync when internet returns.</div>}
-
-            {payMethod==="cash" && (
+            {!isOnline && <div className="pos-offline-note"><span>📴</span> Offline — Cash & Split only. Syncs on reconnect.</div>}
+            {payMethod === "cash" && (
               <div className="pos-cash-row">
-                <label className="pos-cash-label">Amount Paid by Customer (KES)</label>
-                <input className="pos-cash-input" type="number" placeholder={`Min ${fmt(subtotal)}`} value={amountPaid} onChange={e => setAmountPaid(e.target.value)}/>
-                {amountPaid && <div className={`pos-change-row ${change<0?"pos-change-row--neg":""}`}><span>{change<0?"Short by":"Change"}</span><strong>{fmt(Math.abs(change))}</strong></div>}
+                <label className="pos-cash-label">Amount Paid (KES)</label>
+                <input className="pos-cash-input" type="number" placeholder={`Min ${fmt(subtotal)}`} value={amountPaid} onChange={e => setAmountPaid(e.target.value)} />
+                {amountPaid && <div className={`pos-change-row ${change < 0 ? "pos-change-row--neg" : ""}`}><span>{change < 0 ? "Short by" : "Change"}</span><strong>{fmt(Math.abs(change))}</strong></div>}
               </div>
             )}
-
-            {payMethod==="mpesa" && (
+            {payMethod === "mpesa" && (
               <div className="pos-cash-row">
                 <label className="pos-cash-label">Customer Safaricom Number</label>
-                <input className="pos-cash-input" type="tel" placeholder="+254 7XX XXX XXX" value={mpesaPhone} onChange={e => setMpesaPhone(e.target.value)}/>
+                <input className="pos-cash-input" type="tel" placeholder="+254 7XX XXX XXX" value={mpesaPhone} onChange={e => setMpesaPhone(e.target.value)} />
                 <div className="mpesa-paybill-card">
-                  <div className="mpesa-paybill-row"><span>Paybill No.</span><strong>{store.mpesa_shortcode}</strong></div>
-                  <div className="mpesa-paybill-row"><span>Account No.</span><strong>{store.mpesa_account}</strong></div>
+                  <div className="mpesa-paybill-row"><span>Paybill</span><strong>{store.mpesa_shortcode || "880100"}</strong></div>
+                  <div className="mpesa-paybill-row"><span>Account</span><strong>{store.mpesa_account || "505008"}</strong></div>
                   <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(subtotal)}</strong></div>
                 </div>
               </div>
             )}
-
-            {payMethod==="split" && (
+            {payMethod === "split" && (
               <div className="pos-cash-row">
                 <label className="pos-cash-label">Cash Portion (KES)</label>
-                <input className="pos-cash-input" type="number" placeholder="How much customer pays in cash" value={amountPaid} onChange={e => setAmountPaid(e.target.value)}/>
-                {paidAmt>0 && paidAmt<subtotal && (
+                <input className="pos-cash-input" type="number" placeholder="Cash amount" value={amountPaid} onChange={e => setAmountPaid(e.target.value)} />
+                {paidAmt > 0 && paidAmt < subtotal && (
                   <div className="pos-split-breakdown">
-                    <div className="pos-split-row"><span>💵 Cash received</span><strong>{fmt(paidAmt)}</strong></div>
-                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 M-Pesa STK push</span><strong style={{color:"var(--teal)"}}>{fmt(subtotal-paidAmt)}</strong></div>
+                    <div className="pos-split-row"><span>💵 Cash</span><strong>{fmt(paidAmt)}</strong></div>
+                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 M-Pesa STK</span><strong style={{ color: "var(--teal)" }}>{fmt(subtotal - paidAmt)}</strong></div>
                     <div className="pos-split-row pos-split-row--total"><span>Total</span><strong>{fmt(subtotal)}</strong></div>
                   </div>
                 )}
-                {paidAmt>=subtotal && <div className="pos-change-row"><span>No M-Pesa needed — cash covers total</span></div>}
-                <label className="pos-cash-label" style={{marginTop:8}}>Customer Safaricom Number</label>
-                <input className="pos-cash-input" type="tel" placeholder="+254 7XX XXX XXX" value={mpesaPhone} onChange={e => setMpesaPhone(e.target.value)}/>
+                <label className="pos-cash-label" style={{ marginTop: 8 }}>Safaricom Number</label>
+                <input className="pos-cash-input" type="tel" placeholder="+254 7XX XXX XXX" value={mpesaPhone} onChange={e => setMpesaPhone(e.target.value)} />
               </div>
             )}
-
             {checkoutErr && <div className="lf-error"><span>⚠</span> {checkoutErr}</div>}
-
             <button className="pos-checkout-btn"
-              disabled={
-                !allPriced ||
-                (payMethod==="cash"  && paidAmt<subtotal) ||
-                (payMethod==="split" && paidAmt<=0) ||
-                (payMethod==="split" && paidAmt>0 && (subtotal-paidAmt)>0 && !mpesaPhone.trim())
-              }
-              onClick={checkout}
-            >
-              {!allPriced ? "Enter selling prices ↑"
-                : payMethod==="split" && paidAmt<=0 ? "Enter cash portion ↑"
-                : payMethod==="split" && (subtotal-paidAmt)>0 && !mpesaPhone.trim() ? "Enter M-Pesa number ↑"
-                : payMethod==="split" && paidAmt>0 && subtotal-paidAmt>0 ? `Complete — ${fmt(paidAmt)} Cash + ${fmt(subtotal-paidAmt)} M-Pesa`
-                : `Complete Sale · ${fmt(subtotal)}`}
+              disabled={!allPriced || (payMethod === "cash" && paidAmt < subtotal) || (payMethod === "split" && paidAmt <= 0) || ((payMethod === "mpesa" || (payMethod === "split" && (subtotal - paidAmt) > 0)) && !mpesaPhone.trim())}
+              onClick={checkout}>
+              {!allPriced ? "Enter selling prices ↑" : payMethod === "split" && paidAmt > 0 && (subtotal - paidAmt) > 0 ? `Pay ${fmt(paidAmt)} Cash + ${fmt(subtotal - paidAmt)} M-Pesa` : `Complete Sale · ${fmt(subtotal)}`}
             </button>
           </div>
         </div>

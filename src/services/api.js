@@ -6,15 +6,16 @@ import {
   getOfflineUser,
 } from '../lib/offlineDB';
 
-// Normalise the API URL — always ends with /api, never has trailing slash
 function buildBaseURL() {
   let url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  url = url.trim().replace(/\/+$/, ''); // strip trailing slashes
-  if (!url.endsWith('/api')) url = url + '/api'; // ensure /api suffix
+  url = url.trim().replace(/\/+$/, '');
+  if (!url.endsWith('/api')) url = url + '/api';
   return url;
 }
 
-const BASE_URL = buildBaseURL();
+export const BASE_URL = buildBaseURL();
+// Root URL without /api — used for keepalive ping
+export const ROOT_URL = BASE_URL.replace(/\/api$/, '');
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -54,22 +55,22 @@ export const authAPI = {
     }
     return api.post('/auth/login', { identifier, password });
   },
-  me:             ()                       => api.get('/auth/me'),
-  logout:         ()                       => api.post('/auth/logout').catch(() => {}),
+  me:             ()                          => api.get('/auth/me'),
+  logout:         ()                          => api.post('/auth/logout').catch(() => {}),
   changePassword: (currentPassword, newPassword) =>
                   api.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
 // ── Categories ────────────────────────────────────────────────────
 export const categoriesAPI = {
-  getBrands:      (params)     => api.get('/categories/brands', { params }),
-  createBrand:    (data)       => api.post('/categories/brands', data),
-  updateBrand:    (id, data)   => api.put(`/categories/brands/${id}`, data),
-  deleteBrand:    (id)         => api.delete(`/categories/brands/${id}`),
-  getSubtypes:    (params)     => api.get('/categories/subtypes', { params }),
-  createSubtype:  (data)       => api.post('/categories/subtypes', data),
-  updateSubtype:  (id, data)   => api.put(`/categories/subtypes/${id}`, data),
-  deleteSubtype:  (id)         => api.delete(`/categories/subtypes/${id}`),
+  getBrands:     (params)     => api.get('/categories/brands', { params }),
+  createBrand:   (data)       => api.post('/categories/brands', data),
+  updateBrand:   (id, data)   => api.put(`/categories/brands/${id}`, data),
+  deleteBrand:   (id)         => api.delete(`/categories/brands/${id}`),
+  getSubtypes:   (params)     => api.get('/categories/subtypes', { params }),
+  createSubtype: (data)       => api.post('/categories/subtypes', data),
+  updateSubtype: (id, data)   => api.put(`/categories/subtypes/${id}`, data),
+  deleteSubtype: (id)         => api.delete(`/categories/subtypes/${id}`),
 };
 
 // ── Products ──────────────────────────────────────────────────────
@@ -85,18 +86,52 @@ export const productsAPI = {
           p.sku?.toLowerCase().includes(q)
         );
       }
-      if (params?.brand)        products = products.filter(p => p.brand === params.brand);
-      if (params?.brand_id)     products = products.filter(p => p.brand_id === parseInt(params.brand_id));
-      if (params?.sub_type_id)  products = products.filter(p => p.sub_type_id === parseInt(params.sub_type_id));
-      if (params?.top_type)     products = products.filter(p => p.top_type === params.top_type);
+      if (params?.brand)       products = products.filter(p => p.brand === params.brand);
+      if (params?.brand_id)    products = products.filter(p => p.brand_id === parseInt(params.brand_id));
+      if (params?.sub_type_id) products = products.filter(p => p.sub_type_id === parseInt(params.sub_type_id));
+      if (params?.top_type)    products = products.filter(p => p.top_type === params.top_type);
+      if (params?.in_stock === 'true') products = products.filter(p => p.stock > 0);
       return { data: products };
     }
     const res = await api.get('/products', { params });
+    // Cache the full unfiltered list for offline use
     if (!params?.search && !params?.brand && !params?.brand_id && !params?.sub_type_id) {
       cacheProducts(res.data || []).catch(() => {});
     }
     return res;
   },
+
+  // Fast autocomplete search — hits /products/search endpoint
+  // Falls back to in-memory cache when offline
+  search: async (q, opts = {}) => {
+    if (!q || q.trim().length === 0) return { data: [] };
+    if (isOffline()) {
+      const all = await getCachedProducts();
+      const lq  = q.toLowerCase();
+      const filtered = all.filter(p =>
+        p.stock > 0 && (
+          p.name?.toLowerCase().includes(lq)   ||
+          p.brand?.toLowerCase().includes(lq)  ||
+          p.sku?.toLowerCase().includes(lq)    ||
+          p.color?.toLowerCase().includes(lq)
+        )
+      );
+      if (opts.top_type) filtered.filter(p => p.top_type === opts.top_type);
+      return { data: filtered.slice(0, 15) };
+    }
+    return api.get('/products/search', { params: { q, ...opts } });
+  },
+
+  // Cashier's most-used products for quick picks
+  getFavorites: (params) => {
+    if (isOffline()) return getCachedProducts()
+      .then(all => ({ data: all.filter(p => p.stock > 0).slice(0, 12) }));
+    return api.get('/products/favorites', { params });
+  },
+
+  // Record a product was used (called after successful sale)
+  recordUsed: (productId) => api.post(`/products/favorites/${productId}`).catch(() => {}),
+
   create:     (data)     => api.post('/products', data),
   update:     (id, data) => api.put(`/products/${id}`, data),
   remove:     (id)       => api.delete(`/products/${id}`),
@@ -105,18 +140,33 @@ export const productsAPI = {
 
 // ── Sales ─────────────────────────────────────────────────────────
 export const salesAPI = {
-  create:             (data)    => api.post('/sales', data),
-  getAll:             (params)  => api.get('/sales', { params }),
-  getById:            (id)      => api.get(`/sales/${id}`),
-  confirmMpesaManual: (saleId)  => api.post('/sales/confirm-mpesa-manual', { sale_id: saleId }),
+  create:             (data)   => api.post('/sales', data),
+  getAll:             (params) => api.get('/sales', { params }),
+  getById:            (id)     => api.get(`/sales/${id}`),
+  confirmMpesaManual: (saleId) => api.post('/sales/confirm-mpesa-manual', { sale_id: saleId }),
 };
 
-// ── M-Pesa ────────────────────────────────────────────────────────
-export const mpesaAPI = {
-  stkPush:       (sale_id, phone, amount)                      => api.post('/mpesa/stk-push',       { sale_id, phone, amount }),
-  getStatus:     (checkoutRequestId)                           => api.get(`/mpesa/status/${checkoutRequestId}`),
-  confirmManual: (checkout_request_id, sale_id)                => api.post('/mpesa/confirm-manual',  { checkout_request_id, sale_id }),
-  confirmByRef:  (checkout_request_id, sale_id, mpesa_ref)     => api.post('/mpesa/confirm-by-ref',  { checkout_request_id, sale_id, mpesa_ref }),
+// ── Tuma (replaces mpesaAPI) ──────────────────────────────────────
+export const tumaAPI = {
+  stkPush:         (sale_id, phone, amount)                     => api.post('/tuma/stk-push',       { sale_id, phone, amount }),
+  getStatus:       (checkoutRequestId)                          => api.get(`/tuma/status/${checkoutRequestId}`),
+  confirmManual:   (checkout_request_id, sale_id)               => api.post('/tuma/confirm-manual',  { checkout_request_id, sale_id }),
+  confirmByRef:    (checkout_request_id, sale_id, payment_ref)  => api.post('/tuma/confirm-by-ref',  { checkout_request_id, sale_id, payment_ref }),
+  testCredentials: ()                                           => api.get('/tuma/test-credentials'),
+  getCancelBlocks: ()                                           => api.get('/tuma/cancel-blocks'),
+  unblockPhone:    (phone)                                      => api.delete(`/tuma/cancel-blocks/${encodeURIComponent(phone)}`),
+};
+
+// Keep mpesaAPI as alias so any unchanged code still works
+export const mpesaAPI = tumaAPI;
+
+// ── Stores ────────────────────────────────────────────────────────
+export const storesAPI = {
+  getAll:   ()         => api.get('/stores'),
+  compare:  (params)   => api.get('/stores/compare', { params }),
+  create:   (data)     => api.post('/stores', data),
+  update:   (id, data) => api.put(`/stores/${id}`, data),
+  remove:   (id)       => api.delete(`/stores/${id}`),
 };
 
 // ── Reports ───────────────────────────────────────────────────────
@@ -143,8 +193,7 @@ export const reportsAPI = {
   },
   topProducts: async (params) => {
     if (isOffline()) {
-      const key = `top_${params?.from}_${params?.to}`;
-      const cached = await getCachedDashboard(key);
+      const cached = await getCachedDashboard(`top_${params?.from}_${params?.to}`);
       return cached ? { data: cached } : { data: [] };
     }
     const res = await api.get('/reports/top-products', { params });
@@ -153,8 +202,7 @@ export const reportsAPI = {
   },
   cashiers: async (params) => {
     if (isOffline()) {
-      const key = `cashiers_${params?.from}_${params?.to}`;
-      const cached = await getCachedDashboard(key);
+      const cached = await getCachedDashboard(`cashiers_${params?.from}_${params?.to}`);
       return cached ? { data: cached } : { data: [] };
     }
     const res = await api.get('/reports/cashiers', { params });
@@ -163,8 +211,7 @@ export const reportsAPI = {
   },
   paymentMix: async (params) => {
     if (isOffline()) {
-      const key = `pmix_${params?.from}_${params?.to}`;
-      const cached = await getCachedDashboard(key);
+      const cached = await getCachedDashboard(`pmix_${params?.from}_${params?.to}`);
       return cached ? { data: cached } : { data: [] };
     }
     const res = await api.get('/reports/payment-mix', { params });
