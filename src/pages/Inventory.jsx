@@ -911,9 +911,12 @@ export default function Inventory() {
 
           {!loading && products.length > 0 && (
             <div className="panel-card" style={{padding:0,overflow:"hidden"}}>
-              <div style={{padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                 <span style={{fontWeight:700,fontSize:14}}>{products.length} listings · {products.reduce((s,p) => s + +p.stock, 0)} units total</span>
-                {isAdmin && <button className="tbl-btn tbl-btn--edit" onClick={openAdd}>+ Add Variant</button>}
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {isAdmin && <button className="tbl-btn tbl-btn--edit" onClick={openBulkAdd}>📦 Bulk Add</button>}
+                  {isAdmin && <button className="tbl-btn tbl-btn--edit" onClick={openAdd}>+ Add Variant</button>}
+                </div>
               </div>
               <div className="table-wrap">
                 <table className="sales-table">
