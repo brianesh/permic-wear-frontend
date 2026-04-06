@@ -247,12 +247,24 @@ export default function POS() {
   const completeTuma = async () => {
     clearInterval(pollRef.current);
     const saleId = pendingSaleRef.current, cid = checkoutId, ref = payRef.trim();
+    let finalRef = ref;
     try {
-      if (ref) await tumaAPI.confirmByRef(cid, saleId, ref); else await tumaAPI.confirmManual(cid, saleId);
+      if (ref) {
+        const result = await tumaAPI.confirmByRef(cid, saleId, ref);
+        finalRef = result.data?.payment_ref || ref;
+      } else {
+        const result = await tumaAPI.confirmManual(cid, saleId);
+        finalRef = result.data?.payment_ref || `MANUAL-${Date.now()}`;
+      }
       applyStockDed(lastItemsRef.current || []); lastItemsRef.current = [];
-    } catch (e) { const m = e.response?.data?.error || ""; if (!m.includes("completed")) console.warn("[tuma]", m); }
+    } catch (e) {
+      const m = e.response?.data?.error || "";
+      if (!m.includes("completed")) console.warn("[tuma]", m);
+      // Generate a reference if we don't have one
+      if (!finalRef) finalRef = `TUMA-${Date.now()}`;
+    }
     pendingSaleRef.current = null;
-    setReceipt({ txn: ref || `TXN-${Date.now()}`, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method: "M-Pesa", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, paymentRef: ref, cashierCommission: saleCommRef.current || totalComm, isOffline: false, customerPhone: mpesaPhone });
+    setReceipt({ txn: finalRef, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method: "M-Pesa", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, paymentRef: finalRef, cashierCommission: saleCommRef.current || totalComm, isOffline: false, customerPhone: mpesaPhone });
     setCart([]); setAmountPaid(""); setMpesaPhone(""); setTumaStep(null); setCheckoutId(null); setPayRef("");
   };
 
@@ -291,7 +303,10 @@ export default function POS() {
       {tumaStep === "confirmed" && <>
         <div className="mpesa-success-icon">✓</div>
         <div className="mpesa-title">Payment Confirmed!</div>
-        <div className="mpesa-sub">Ref: <strong>{payRef}</strong></div>
+        <div className="mpesa-sub">
+          {mpesaPhone && <div style={{ marginBottom: 4 }}>Customer: <strong>{mpesaPhone}</strong></div>}
+          <div>Ref: <strong>{payRef || "Processing..."}</strong></div>
+        </div>
         <button className="pos-checkout-btn" style={{ marginTop: 16 }} onClick={completeTuma}>Continue → Receipt</button>
       </>}
       {(tumaStep === "failed" || tumaStep === "timeout") && <>
