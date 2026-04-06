@@ -14,7 +14,7 @@ export default function Settings() {
   const [alerts, setAlerts] = useState({ low_stock_threshold:5, aging_days:60, sms_alerts:"true", admin_phone:"", admin_email:"", email_alerts:"true" });
   const [sms, setSms]       = useState({ at_api_key:"", at_username:"", at_sender_id:"PERMICWEAR" });
   const [gmail, setGmail]   = useState({ gmail_user:"", gmail_app_password:"" });
-  const [mpesa, setMpesa]   = useState({ mpesa_shortcode:"880100", mpesa_account:"505008", mpesa_phone:"0706505008", mpesa_consumer_key:"", mpesa_consumer_secret:"", mpesa_env:"production" });
+  const [tuma, setTuma]     = useState({ tuma_paybill:"880100", tuma_account:"505008", tuma_phone:"0706505008", tuma_api_key:"" });
   const [commission, setCommission] = useState({ commission_rate:"10" });
   const [pwForm, setPwForm] = useState({ current:"", next:"", confirm:"" });
   const [pwErr, setPwErr]   = useState("");
@@ -27,7 +27,7 @@ export default function Settings() {
       setAlerts(prev => ({...prev, ...Object.fromEntries(Object.keys(prev).map(k=>[k,s[k]??prev[k]]))}));
       setSms(prev => ({...prev, ...Object.fromEntries(Object.keys(prev).map(k=>[k,s[k]??prev[k]]))}));
       setGmail(prev => ({...prev, ...Object.fromEntries(Object.keys(prev).map(k=>[k,s[k]??prev[k]]))}));
-      setMpesa(prev => ({...prev, ...Object.fromEntries(Object.keys(prev).map(k=>[k,s[k]??prev[k]]))}));
+      setTuma(prev => ({...prev, ...Object.fromEntries(Object.keys(prev).map(k=>[k,s[k]??prev[k]]))}));
       setCommission({ commission_rate: s.commission_rate ?? "10" });
     }).catch(()=>{}).finally(()=>setLoading(false));
   }, []);
@@ -44,7 +44,7 @@ export default function Settings() {
   // Critical sections that require confirmation before saving
   const CRITICAL_SECTIONS = ["payments", "sms", "gmail", "commission"];
   const CRITICAL_MESSAGES = {
-    payments:   "You are about to change M-Pesa payment credentials.\n\nThis affects how customers pay. Wrong credentials will break payments.\n\nAre you sure?",
+    payments:   "You are about to change Tuma payment credentials.\n\nThis affects how customers pay. Wrong credentials will break payments.\n\nAre you sure?",
     sms:        "You are about to change SMS (Africa's Talking) credentials.\n\nThis affects stock alert messages.\n\nAre you sure?",
     gmail:      "You are about to change Gmail email credentials.\n\nThis affects email alert delivery.\n\nAre you sure?",
     commission: "You are about to change the commission rate.\n\nThis affects how much all cashiers earn per sale.\n\nAre you sure?",
@@ -75,7 +75,7 @@ export default function Settings() {
     {id:"alerts",     icon:"⚠",  label:"Stock Alerts"},
     {id:"sms",        icon:"📲", label:"SMS (Africa's Talking)"},
     {id:"gmail",      icon:"📧", label:"Email (Gmail)"},
-    {id:"payments",   icon:"📱", label:"M-Pesa"},
+    {id:"payments",   icon:"📱", label:"Payment (Tuma)"},
     {id:"security",   icon:"◉",  label:"Security"},
   ];
 
@@ -289,79 +289,65 @@ export default function Settings() {
           </>)}
 
           {tab==="payments"&&(<>
-            <div className="settings-section-title">M-Pesa Configuration</div>
+            <div className="settings-section-title">Payment — Tuma API</div>
             <div className="settings-section-sub">
-              Configure your live Safaricom Daraja credentials. Get these from
-              <strong> developer.safaricom.co.ke</strong> after your app is approved for production.
+              Configure your Tuma Payment Solutions credentials. Get your API key from
+              <strong> api.tuma.co.ke</strong> dashboard.
             </div>
 
             {/* Live status */}
             <div className="settings-info-box" style={{marginTop:16,marginBottom:20,borderColor:"rgba(168,230,207,0.4)",background:"rgba(168,230,207,0.06)"}}>
               <span>✅</span>
               <span style={{color:"var(--green)"}}>
-                <strong>Production mode</strong> — real customer payments via Paybill or STK Push.
-                Make sure your callback URL is your Render backend URL.
+                <strong>Production mode</strong> — real customer payments via STK Push.
+                Callback URL is auto-configured from your Render backend URL.
               </span>
             </div>
 
             <div className="modal-grid" style={{marginTop:4}}>
-              <Field label="Business Short Code (Paybill No.)">
-                <input value={mpesa.mpesa_shortcode} onChange={e=>setMpesa({...mpesa,mpesa_shortcode:e.target.value})} placeholder="e.g. 880100"/>
-                <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Your Safaricom Paybill number</div>
+              <Field label="Paybill Number">
+                <input value={tuma.tuma_paybill} onChange={e=>setTuma({...tuma,tuma_paybill:e.target.value})} placeholder="e.g. 880100"/>
+                <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Your Tuma Paybill number</div>
               </Field>
               <Field label="Account Number">
-                <input value={mpesa.mpesa_account} onChange={e=>setMpesa({...mpesa,mpesa_account:e.target.value})} placeholder="e.g. 505008"/>
-                <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Customers enter this when paying via Paybill</div>
+                <input value={tuma.tuma_account} onChange={e=>setTuma({...tuma,tuma_account:e.target.value})} placeholder="e.g. 505008"/>
+                <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Default account reference for STK pushes</div>
               </Field>
-              <Field label="M-Pesa Registered Phone">
-                <input value={mpesa.mpesa_phone} onChange={e=>setMpesa({...mpesa,mpesa_phone:e.target.value})} placeholder="e.g. 0706505008"/>
+              <Field label="Registered Phone">
+                <input value={tuma.tuma_phone} onChange={e=>setTuma({...tuma,tuma_phone:e.target.value})} placeholder="e.g. 0706505008"/>
                 <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Phone number linked to the paybill</div>
               </Field>
               <SecretField
-                label="Consumer Key (from Daraja Production App)"
-                value={mpesa.mpesa_consumer_key}
-                onChange={e=>setMpesa({...mpesa,mpesa_consumer_key:e.target.value})}
-                placeholder="Paste from Daraja → My Apps → Production → Keys"
-              />
-              <SecretField
-                label="Consumer Secret (from Daraja Production App)"
-                value={mpesa.mpesa_consumer_secret}
-                onChange={e=>setMpesa({...mpesa,mpesa_consumer_secret:e.target.value})}
-                placeholder="Paste from Daraja → My Apps → Production → Keys"
+                label="Tuma API Key"
+                value={tuma.tuma_api_key}
+                onChange={e=>setTuma({...tuma,tuma_api_key:e.target.value})}
+                placeholder="Paste from Tuma dashboard → API Keys"
               />
             </div>
 
             <div className="settings-info-box" style={{marginTop:16,flexDirection:"column",alignItems:"flex-start",gap:8}}>
-              <div style={{fontWeight:700,fontSize:13}}>⚙ These two must be in your Render environment variables:</div>
+              <div style={{fontWeight:700,fontSize:13}}>ℹ️ Environment variables (set in Render):</div>
               <code style={{fontSize:11,color:"var(--text2)",lineHeight:2,background:"var(--bg3)",padding:"8px 12px",borderRadius:6,display:"block",width:"100%",boxSizing:"border-box"}}>
-                MPESA_PASSKEY=your_production_passkey<br/>
-                MPESA_CALLBACK_URL=https://your-app.onrender.com/api/mpesa/callback
+                TUMA_API_KEY=your_api_key<br/>
+                TUMA_CALLBACK_URL=https://your-app.onrender.com/api/tuma/callback
               </code>
               <div style={{fontSize:11,color:"var(--text3)"}}>
-                Get MPESA_PASSKEY from Daraja → My Apps → Production App → Passkey tab.
+                The callback URL is automatically derived from your Render app URL.
               </div>
             </div>
 
-            <div className="settings-info-box" style={{marginTop:8}}>
-              <span>🔗</span>
-              <span>
-                After saving, register your C2B URLs with Safaricom once by opening:<br/>
-                <code style={{fontSize:11}}>GET https://your-app.onrender.com/api/mpesa/c2b-register</code>
-              </span>
-            </div>
-
             <div style={{display:"flex",gap:12,marginTop:20,flexWrap:"wrap"}}>
-              <SaveBtn section="payments" data={mpesa}/>
+              <SaveBtn section="payments" data={tuma}/>
               {user?.role==="super_admin" && (
                 <button className="modal-save" style={{background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text)"}}
                   onClick={async()=>{
                     try {
-                      const r = await fetch((import.meta.env.VITE_API_URL||"http://localhost:5000/api")+"/mpesa/test-credentials",
+                      const r = await fetch((import.meta.env.VITE_API_URL||"http://localhost:5000/api")+"/tuma/test-credentials",
                         {headers:{Authorization:`Bearer ${localStorage.getItem("se_token")}`}});
                       const d = await r.json();
                       alert(d.ok
-                        ? `OK: ${d.message}\n\nEnv: ${d.report?.env}\nShortcode: ${d.report?.shortcode}\nToken: ${d.report?.token_test}`
-                        : `FAILED: ${d.message}\n\n${JSON.stringify(d.report||{},null,2)}`);
+                        ? `OK: ${d.message}\n\nPaybill: ${d.report?.paybill}\nAccount: ${d.report?.account}`
+                        : `FAILED: ${d.message}`);
                     } catch(e){alert("Test failed: "+e.message);}
                   }}
                 >🔍 Test Credentials</button>
