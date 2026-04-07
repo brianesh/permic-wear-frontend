@@ -965,6 +965,36 @@ body {
 }
 .mpesa-title { font-size: 16px; font-weight: 700; color: var(--text); }
 .mpesa-sub   { font-size: 13px; color: var(--text3); }
+
+/* Preview card (before STK push) */
+.mpesa-preview-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  width: 100%;
+  margin: 8px 0;
+}
+.mpesa-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+.mpesa-preview-row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.mpesa-preview-note {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+  background: rgba(245,166,35,0.08);
+  border: 1px solid rgba(245,166,35,0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  text-align: left;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes slideUp { from { transform: translateX(-50%) translateY(24px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
 

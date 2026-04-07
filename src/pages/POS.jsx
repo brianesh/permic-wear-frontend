@@ -284,12 +284,33 @@ export default function POS() {
     if (payMethod === "cash" && paidAmt < subtotal) return;
     if (payMethod === "split" && paidAmt <= 0) return;
     if (payMethod === "cash") { doCheckout("Cash"); return; }
-    setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800);
+    setTumaStep("preview"); // Show confirmation before STK
   };
 
   // Tuma overlay
   if (tumaStep) return (
     <div className="pos-page"><div className="mpesa-overlay"><div className="mpesa-modal">
+      {tumaStep === "preview" && <>
+        <div className="mpesa-title" style={{ marginBottom: 16 }}>Confirm Payment</div>
+        <div className="mpesa-preview-card">
+          <div className="mpesa-preview-row">
+            <span style={{ color: "var(--text3)" }}>Amount</span>
+            <strong style={{ color: "var(--gold)", fontSize: 18 }}>{fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}</strong>
+          </div>
+          <div className="mpesa-preview-row">
+            <span style={{ color: "var(--text3)" }}>Business Name</span>
+            <strong>PERMIC MEN'S WEAR</strong>
+          </div>
+        </div>
+        <div className="mpesa-preview-note">
+          ⚠️ You will receive an M-Pesa prompt from <strong>{store.mpesa_shortcode || "880100"}</strong>. 
+          The business name on your phone may appear differently - this is normal.
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
+          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800); }}>Proceed with Payment</button>
+        </div>
+      </>}
       {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
       {tumaStep === "confirming" && <>
         <div className="mpesa-spinner" />
