@@ -220,23 +220,14 @@ export default function POS() {
     }
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      // For Tuma payments, amount_paid should be the full subtotal (not 0)
-      const amountPaidForSale = method === "Tuma" ? subtotal : paidAmt;
-      const payload = {
-        items,
-        payment_method: method,
-        amount_paid: amountPaidForSale,
-        phone: mpesaPhone || null,
-        tuma_portion: mp > 0 ? mp : undefined
-      };
-      const r = await salesAPI.create(payload);
+      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, mpesa_phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
-      pendingSaleRef.current = (method === "Tuma" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
-      if (method === "Tuma" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
+      pendingSaleRef.current = (method === "M-Pesa" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
+      if (method === "M-Pesa" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
       else applyStockDed(items);
 
-      if ((method === "Tuma" || (method === "Split" && mp > 0)) && mpesaPhone) {
+      if ((method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone) {
         try {
           const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
           // Use the reference from backend (always available) for polling
@@ -314,19 +305,14 @@ export default function POS() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
-          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "Tuma" : "Split"), 800); }}>Proceed with Payment</button>
+          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800); }}>Proceed with Payment</button>
         </div>
       </>}
       {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
       {tumaStep === "confirming" && <>
         <div className="mpesa-spinner" />
         <div className="mpesa-title">Awaiting Payment</div>
-        <div className="mpesa-sub">Waiting on customer's phone… ({countdown}s)</div>
-        <div className="mpesa-paybill-card">
-          <div className="mpesa-paybill-row"><span>NCBA Paybill</span><strong>{store.ncba_shortcode || "880100"}</strong></div>
-          <div className="mpesa-paybill-row"><span>Account</span><strong>{store.ncba_account || "505008"}</strong></div>
-          <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}</strong></div>
-        </div>
+        <div className="mpesa-sub">STK push sent to <strong>{mpesaPhone}</strong> ({countdown}s)</div>
         <div className="mpesa-manual-ref-section">
           <div className="mpesa-alt-note">Enter M-Pesa receipt code from customer's SMS:</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8, width: "100%" }}>
