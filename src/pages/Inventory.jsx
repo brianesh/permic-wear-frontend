@@ -676,19 +676,11 @@ export default function Inventory() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Inventory</h1>
-          <p className="page-sub">
-            {topType === null ? "Select a category to browse" :
-             selSubtype ? `${selBrand?.name} › ${selSubtype.name} — ${products.length} variants` :
-             selBrand ? `${selBrand.name} — ${products.length} items` :
-             `${topType === "shoes" ? "👟 Shoes" : "👕 Clothes"} — ${brands.length} brands`}
-          </p>
+          <p className="page-sub">{products.length} products</p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {isAdmin && topType && (
-            <button className="modal-cancel" style={{padding:"10px 14px",fontSize:13}} onClick={() => openCatAdd("brands")}>⚙ Manage Categories</button>
-          )}
           <button className="modal-cancel" style={{padding:"10px 14px",fontSize:13}} onClick={() => setCsvModal(true)}>📥 Import CSV</button>
-          {(selSubtype || (selBrand && topType === "clothes")) && isAdmin && (
+          {isAdmin && (
             <>
               <button className="primary-btn" style={{fontSize:13}} onClick={openBulkAdd}>📦 Bulk Add</button>
               <button className="primary-btn" style={{fontSize:13}} onClick={openAdd}>+ Add Product</button>
@@ -700,26 +692,26 @@ export default function Inventory() {
       {/* ── Products table ── */}
       <div>
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-            <span style={{fontSize:13,color:"var(--text3)"}}>All Products</span>
-            <div className="pos-search-wrap" style={{marginLeft:"auto",flex:"0 0 240px"}}>
-              <span className="pos-search-icon">🔍</span>
-              <input className="pos-search" placeholder="Search…" value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && refreshProducts()}/>
-            </div>
+          <span style={{fontSize:13,color:"var(--text3)"}}>All Products</span>
+          <div className="pos-search-wrap" style={{marginLeft:"auto",flex:"0 0 240px"}}>
+            <span className="pos-search-icon">🔍</span>
+            <input className="pos-search" placeholder="Search…" value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && refreshProducts()}/>
           </div>
+        </div>
 
-          {loading && <div style={{textAlign:"center",padding:40,color:"var(--text3)"}}>Loading…</div>}
+        {loading && <div style={{textAlign:"center",padding:40,color:"var(--text3)"}}>Loading…</div>}
 
-          {!loading && products.length === 0 && (
-            <div style={{textAlign:"center",padding:50,color:"var(--text3)"}}>
-              <div style={{fontSize:32,marginBottom:10}}>📦</div>
-              No products found.
-              {isAdmin && <> <button className="link-btn" style={{marginLeft:8}} onClick={openAdd}>Add one now →</button></>}
-            </div>
-          )}
+        {!loading && products.length === 0 && (
+          <div style={{textAlign:"center",padding:50,color:"var(--text3)"}}>
+            <div style={{fontSize:32,marginBottom:10}}>📦</div>
+            No products found.
+            {isAdmin && <><button className="link-btn" style={{marginLeft:8}} onClick={openAdd}>Add one now →</button></>}
+          </div>
+        )}
 
-          {!loading && products.length > 0 && (
+        {!loading && products.length > 0 && (
             <div className="panel-card" style={{padding:0,overflow:"hidden"}}>
               <div style={{padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                 <span style={{fontWeight:700,fontSize:14}}>{products.length} listings · {products.reduce((s,p) => s + +p.stock, 0)} units total</span>
@@ -780,6 +772,5 @@ export default function Inventory() {
           )}
         </div>
       </div>
-    </div>
   );
 }
