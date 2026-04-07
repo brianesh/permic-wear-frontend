@@ -305,7 +305,7 @@ export default function POS() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
-          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800); }}>Proceed with Payment</button>
+          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "Tuma" : "Split"), 800); }}>Proceed with Payment</button>
         </div>
       </>}
       {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
