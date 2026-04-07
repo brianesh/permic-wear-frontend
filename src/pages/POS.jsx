@@ -220,7 +220,16 @@ export default function POS() {
     }
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, phone: mpesaPhone || undefined, tuma_portion: mp || undefined });
+      // For Tuma payments, amount_paid should be the full subtotal (not 0)
+      const amountPaidForSale = method === "Tuma" ? subtotal : paidAmt;
+      const payload = {
+        items,
+        payment_method: method,
+        amount_paid: amountPaidForSale,
+        phone: mpesaPhone || null,
+        tuma_portion: mp > 0 ? mp : undefined
+      };
+      const r = await salesAPI.create(payload);
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
       pendingSaleRef.current = (method === "Tuma" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
