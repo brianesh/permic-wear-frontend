@@ -100,7 +100,15 @@ export default function Sidebar({ activePage, setActivePage, user, logout, allow
             <div className="user-info">
               <span className="user-name">{user?.name}</span>
               <span className="user-role" style={{ color: rc }}>{ROLE_LABEL[user?.role]}</span>
-              {user?.store_name && <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>🏪 {user.store_name}</span>}
+              {/* Super admin sees company name only; others see store + location */}
+              {user?.store_name && (
+                <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>
+                  {user?.role === 'super_admin'
+                    ? `🏢 ${user.store_name}`
+                    : `🏪 ${user.store_name}${user.store_location ? ` · ${user.store_location}` : ''}`
+                  }
+                </span>
+              )}
             </div>
           )}
           <div className="user-status" />
