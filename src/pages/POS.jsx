@@ -89,6 +89,7 @@ export default function POS() {
   const [amountPaid, setAmountPaid] = useState("");
   const [mpesaPhone, setMpesaPhone] = useState("");
   const [tumaStep, setTumaStep] = useState(null);
+  const [tumaError, setTumaError] = useState("");
   const [payRef, setPayRef] = useState("");
   const [checkoutId, setCheckoutId] = useState(null);
   const [countdown, setCountdown] = useState(90);
@@ -179,19 +180,62 @@ export default function POS() {
 
   const applyStockDed = items => setCatalog(p => p.map(pr => { const l = items.find(i => i.product_id === pr.id); return l ? { ...pr, stock: Math.max(0, (parseInt(pr.stock, 10) || 0) - l.qty) } : pr; }));
 
+  // Error code to user-friendly message mapping
+  const getErrorMessage = (code) => {
+    const messages = {
+      1: "Insufficient balance in customer's M-Pesa account",
+      1032: "Customer cancelled the payment request",
+      1037: "Phone unreachable - check if phone is on and has network",
+      1038: "Phone switched off or out of coverage area",
+      1039: "Network timeout - please try again",
+      1040: "Invalid phone number or format",
+      1041: "Customer not opted in for M-Pesa services",
+    };
+    return messages[code] || `Payment failed (code: ${code})`;
+  };
+
   const startPoll = cid => {
     let att = 0;
+    const maxAttempts = 30; // 30 attempts * 4s = 120s max wait
+    const pollInterval = 4000; // Poll every 4 seconds (reduced from 2.5s)
+    
     const tick = async () => {
       att++;
       try {
         const r = await tumaAPI.getStatus(cid);
-        const { status, payment_ref } = r.data;
-        if (status === "success") { clearInterval(pollRef.current); setPayRef(payment_ref || ""); applyStockDed(lastItemsRef.current || []); setTumaStep("confirmed"); return; }
-        if (status === "failed" || status === "timeout") { clearInterval(pollRef.current); setTumaStep("failed"); return; }
-        if (att >= 40) { clearInterval(pollRef.current); setTumaStep("timeout"); }
-      } catch (_) { if (att >= 40) { clearInterval(pollRef.current); setTumaStep("timeout"); } }
+        const { status, payment_ref, error_code, error_message } = r.data;
+        
+        if (status === "success") { 
+          clearInterval(pollRef.current); 
+          setPayRef(payment_ref || ""); 
+          applyStockDed(lastItemsRef.current || []); 
+          setTumaStep("confirmed"); 
+          return; 
+        }
+        if (status === "failed") { 
+          clearInterval(pollRef.current); 
+          setTumaError(getErrorMessage(error_code || 0));
+          setTumaStep("failed"); 
+          return; 
+        }
+        if (status === "timeout") { 
+          clearInterval(pollRef.current); 
+          setTumaStep("timeout"); 
+          return; 
+        }
+        if (att >= maxAttempts) { 
+          clearInterval(pollRef.current); 
+          setTumaStep("timeout"); 
+        }
+      } catch (err) { 
+        console.error('[Poll Error]', err.message);
+        if (att >= maxAttempts) { 
+          clearInterval(pollRef.current); 
+          setTumaStep("timeout"); 
+        }
+      }
     };
-    pollRef.current = setInterval(tick, 2500);
+    pollRef.current = setInterval(tick, pollInterval);
   };
 
   useEffect(() => {
@@ -338,11 +382,14 @@ export default function POS() {
       </>}
       {(tumaStep === "failed" || tumaStep === "timeout") && <>
         <div className="mpesa-fail-icon">✕</div>
-        <div className="mpesa-title">{tumaStep === "timeout" ? "Payment Timed Out" : "Payment Not Confirmed"}</div>
-        <div className="mpesa-sub">Customer may have cancelled or not responded.</div>
+        <div className="mpesa-title">{tumaStep === "timeout" ? "Payment Timed Out" : "Payment Failed"}</div>
+        <div className="mpesa-sub" style={{ color: "var(--red)", fontSize: 13 }}>
+          {tumaError || "Customer may have cancelled or not responded."}
+        </div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Back to Cart</button>
-          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--green)", color: "#000" }} onClick={completeTuma}>Mark Paid</button>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => { setTumaStep(null); setTumaError(""); }}>Back to Cart</button>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--green)", color: "#000" }} onClick={() => { setTumaStep(null); setTumaError(""); checkout(); }}>🔄 Retry Payment</button>
+          <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--gold)", color: "#000" }} onClick={completeTuma}>Mark Paid</button>
         </div>
       </>}
     </div></div></div>
