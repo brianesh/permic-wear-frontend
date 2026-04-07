@@ -461,86 +461,11 @@ export default function POS() {
           )}
 
           {activeTab === "category" && (
-            <>
-              {cat.level === "top" && (
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                  {[{ t: "shoes", icon: "👟", lbl: "Shoes" }, { t: "clothes", icon: "👕", lbl: "Clothes" }].map(({ t, icon, lbl }) => (
-                    <div key={t} style={{ flex: 1, minWidth: 140, cursor: "pointer", padding: 24, textAlign: "center", border: "2px solid var(--border)", borderRadius: 12, background: "var(--bg2)" }} onClick={() => cat.goBrands(t)}>
-                      <div style={{ fontSize: 44, marginBottom: 8 }}>{icon}</div>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>{lbl}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {cat.level === "brands" && (
-                <><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}><button className="tbl-btn" onClick={cat.goTop}>← Back</button><span style={{ fontSize: 12, color: "var(--text3)" }}>{cat.topType === "shoes" ? "👟" : "👕"} › Brand</span></div>
-                  {cat.loading ? <div style={{ padding: 30, textAlign: "center", color: "var(--text3)" }}>Loading…</div> : (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
-                      {cat.brands.map(b => (
-                        <div key={b.id} style={{ cursor: "pointer", padding: 14, textAlign: "center", border: "2px solid var(--border)", borderRadius: 10, background: "var(--bg2)" }} onClick={() => cat.goSubtypes(b)}>
-                          <div style={{ fontSize: 30, marginBottom: 6 }}>{cat.topType === "shoes" ? "👟" : (CLOTH_ICONS[b.name] || "👕")}</div>
-                          <div style={{ fontWeight: 700, fontSize: 12 }}>{b.name}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-              {cat.level === "subtypes" && (
-                <><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}><button className="tbl-btn" onClick={() => cat.goBrands(cat.topType)}>← Back</button><span style={{ fontSize: 12, color: "var(--text3)" }}>👟 {cat.selBrand?.name} › Model</span></div>
-                  {cat.loading ? <div style={{ padding: 30, textAlign: "center", color: "var(--text3)" }}>Loading…</div> : (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
-                      {cat.subtypes.map(st => (
-                        <div key={st.id} style={{ cursor: "pointer", padding: 14, textAlign: "center", border: "2px solid var(--border)", borderRadius: 10, background: "var(--bg2)" }} onClick={() => cat.setSelSubtype(st)}>
-                          <div style={{ fontSize: 30, marginBottom: 6 }}>👟</div>
-                          <div style={{ fontWeight: 700, fontSize: 12 }}>{st.name}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-              {cat.level === "products" && (
-                <>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-                    <button className="tbl-btn" onClick={() => { if (cat.topType === "shoes") cat.setSelSubtype(null); else cat.goBrands(cat.topType); setCatalog([]); }}>← Back</button>
-                    <span style={{ fontSize: 12, color: "var(--text3)" }}>{cat.topType === "shoes" ? `👟 ${cat.selBrand?.name} › ${cat.selSubtype?.name}` : `👕 ${cat.selBrand?.name}`}</span>
-                  </div>
-                  {catLoading ? <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>Loading…</div> : (() => {
-                    const groups = {};
-                    catalog.forEach(p => { const k = `${p.brand}__${p.name}`; if (!groups[k]) groups[k] = []; groups[k].push(p); });
-                    const entries = Object.entries(groups);
-                    if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No products found</div>;
-                    return <div className="pos-grid">{entries.map(([key, vars]) => {
-                      const rep = vars[0];
-                      const sorted = [...vars].sort((a, b) => { const na = parseFloat(a.size), nb = parseFloat(b.size); return (!isNaN(na) && !isNaN(nb)) ? na - nb : String(a.size).localeCompare(String(b.size)); });
-                      const minP = Math.min(...vars.map(v => parseFloat(v.min_price)));
-                      const totS = vars.reduce((s, v) => s + v.stock, 0);
-                      return (
-                        <div key={key} className={`pos-product-card pos-product-card--grouped ${!totS ? "pos-product-card--out" : ""}`}>
-                          {rep.photo_url ? <img src={rep.photo_url} alt={rep.name} className="pos-product-photo" /> : <div className="pos-product-photo-placeholder">{cat.topType === "clothes" ? (CLOTH_ICONS[rep.brand] || "👕") : "👟"}</div>}
-                          <div className="pos-product-brand">{rep.brand}</div>
-                          <div className="pos-product-name">{rep.name}</div>
-                          {rep.color && <div className="pos-product-color">🎨 {rep.color}</div>}
-                          <div className="pos-product-price-row"><span className="pos-product-price">Min: {fmt(minP)}</span><span className={`pos-product-stock ${totS <= 3 ? "pos-product-stock--low" : ""}`}>{totS}</span></div>
-                          <div className="pos-size-label">SIZES</div>
-                          <div className="pos-size-chips">
-                            {sorted.map(v => {
-                              const ic = cart.find(c => c.id === v.id);
-                              const rem = v.stock - (ic?.qty || 0);
-                              return <button key={v.id} className={["pos-size-chip", v.stock === 0 ? "pos-size-chip--out" : "", ic ? "pos-size-chip--active" : "", v.stock > 0 && rem <= 2 ? "pos-size-chip--low" : ""].filter(Boolean).join(" ")} disabled={v.stock === 0} onClick={() => { if (v.stock > 0) addToCart({ ...v, minPrice: parseFloat(v.min_price) }); }}>
-                                <span className="pos-size-chip-sz">{v.size}</span>
-                                <span className={`pos-size-chip-qty ${v.stock > 0 && rem <= 2 ? "pos-size-chip-qty--low" : ""}`}>{v.stock === 0 ? "✕" : ic ? `${rem}l` : `${v.stock}`}</span>
-                              </button>;
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}</div>;
-                  })()}
-                </>
-              )}
-            </>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
+              <p>Browse categories coming soon</p>
+              <p style={{ fontSize: 12, marginTop: 8 }}>Use Search or SKU scan to find products</p>
+            </div>
           )}
         </div>
 

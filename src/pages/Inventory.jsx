@@ -4,10 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import { generateSKU } from "../lib/skuGenerator";
 
 // ── Size options ─────────────────────────────────────────────────
-const SIZES_SHOES         = ["36","37","38","39","40","41","42","43","44","45","46"];
-const SIZES_CLOTH_TOPS    = ["XS","S","M","L","XL","2XL","3XL"];
-const SIZES_CLOTH_BOTTOMS = ["26","28","30","32","34","36","38","40","42"];
-const SIZES_CLOTH_FREE    = ["Free Size","XS","S","M","L","XL","2XL"];
+const SIZES_SHOES         = ["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"];
+const SIZES_CLOTH_TOPS    = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL"];
+const SIZES_CLOTH_BOTTOMS = ["24","26","28","30","32","34","36","38","40","42","44","46","48","50","52"];
+const SIZES_CLOTH_FREE    = ["Free Size","XS","S","M","L","XL","2XL","3XL","4XL","5XL"];
 
 const CLOTH_TYPE_TO_SIZES = {
   "Shirts":SIZES_CLOTH_TOPS, "T-Shirts":SIZES_CLOTH_TOPS, "Vests":SIZES_CLOTH_TOPS,
@@ -44,17 +44,12 @@ export default function Inventory() {
   const { user } = useAuth();
   const isAdmin = user?.role === "super_admin" || user?.role === "admin";
 
-  // ── Category state ────────────────────────────────────────────
-  const [topType, setTopType]       = useState(null); // null | "shoes" | "clothes"
-  const [brands, setBrands]         = useState([]);
-  const [subtypes, setSubtypes]     = useState([]);
-  const [selBrand, setSelBrand]     = useState(null); // brand object
-  const [selSubtype, setSelSubtype] = useState(null); // subtype object
-
-  // ── Products state ────────────────────────────────────────────
+  // ── Simplified state - no category hierarchy ─────────────────
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(false);
   const [search, setSearch]         = useState("");
+
+  // ── Removed: category hierarchy state ────────────────────────
 
   // ── Modals ────────────────────────────────────────────────────
   const [modal, setModal]           = useState(false);
@@ -248,35 +243,10 @@ export default function Inventory() {
   const catPhotoRef = useRef();
   const fileRef  = useRef();
 
-  // ── Load brands when topType selected ────────────────────────
+  // ── Load all products on mount ───────────────────────────────
   useEffect(() => {
-    if (!topType) return;
-    categoriesAPI.getBrands({ top_type: topType })
-      .then(r => setBrands(r.data || []))
-      .catch(() => setBrands([]));
-    setSelBrand(null); setSelSubtype(null); setProducts([]);
-  }, [topType]);
-
-  // ── Load subtypes when brand selected ────────────────────────
-  useEffect(() => {
-    if (!selBrand) { setSubtypes([]); setSelSubtype(null); setProducts([]); return; }
-    if (selBrand.top_type === "shoes") {
-      categoriesAPI.getSubtypes({ brand_id: selBrand.id })
-        .then(r => setSubtypes(r.data || []))
-        .catch(() => setSubtypes([]));
-      setSelSubtype(null); setProducts([]);
-    } else {
-      // Clothes: brand IS the type (Shirts, Jeans etc.) — go straight to products
-      setSubtypes([]); setSelSubtype(null);
-      loadProducts({ brand_id: selBrand.id });
-    }
-  }, [selBrand]);
-
-  // ── Load products when subtype selected (shoes) ───────────────
-  useEffect(() => {
-    if (!selSubtype) return;
-    loadProducts({ sub_type_id: selSubtype.id });
-  }, [selSubtype]);
+    loadProducts();
+  }, []);
 
   const loadProducts = (params = {}) => {
     setLoading(true);
@@ -288,18 +258,13 @@ export default function Inventory() {
   };
 
   const refreshProducts = () => {
-    if (selSubtype)        loadProducts({ sub_type_id: selSubtype.id });
-    else if (selBrand)     loadProducts({ brand_id: selBrand.id });
+    loadProducts();
   };
 
   // ── Product modal ─────────────────────────────────────────────
   const openAdd = () => {
-    const tt = topType || "shoes";
-    const f = emptyForm(tt);
-    if (selBrand) { f.brand = selBrand.name; f.brand_id = selBrand.id; }
-    if (selSubtype) { f.sub_type_id = selSubtype.id; f.category = selSubtype.name; }
-    const sizeOpts = getSizeOpts(tt, selBrand?.name || "");
-    f.size = sizeOpts[0] || "";
+    const f = emptyForm("shoes");
+    f.size = SIZES_SHOES[0] || "";
     setForm(f); setEditId(null); setPhotoPreview(""); setModal(true); setFormError("");
   };
 
@@ -352,60 +317,7 @@ export default function Inventory() {
     catch { setFormError("Delete failed"); }
   };
 
-  // ── Category CRUD modal ────────────────────────────────────────
-  const openCatAdd = (tab) => {
-    setCatTab(tab);
-    setCatForm({ name:"", top_type: topType || "shoes", brand_id: selBrand?.id || "", photo_url:"" });
-    setCatEditId(null); setCatError(""); setCatModal(true);
-  };
-
-  const openCatEdit = (item, tab) => {
-    setCatTab(tab);
-    setCatForm({
-      name: item.name,
-      top_type: item.top_type || topType || "shoes",
-      brand_id: item.brand_id || "",
-      photo_url: item.photo_url || "",
-    });
-    setCatEditId(item.id); setCatError(""); setCatModal(true);
-  };
-
-  const saveCat = async () => {
-    if (!catForm.name) { setCatError("Name is required"); return; }
-    setCatSaving(true); setCatError("");
-    try {
-      if (catTab === "brands") {
-        if (catEditId) await categoriesAPI.updateBrand(catEditId, { name: catForm.name, photo_url: catForm.photo_url || null });
-        else           await categoriesAPI.createBrand({ name: catForm.name, top_type: catForm.top_type, photo_url: catForm.photo_url || null });
-      } else {
-        if (!catForm.brand_id) { setCatError("Select a brand"); setCatSaving(false); return; }
-        if (catEditId) await categoriesAPI.updateSubtype(catEditId, { name: catForm.name, photo_url: catForm.photo_url || null });
-        else           await categoriesAPI.createSubtype({ brand_id: catForm.brand_id, name: catForm.name, photo_url: catForm.photo_url || null });
-      }
-      setCatModal(false);
-      // Refresh lists
-      if (topType) {
-        categoriesAPI.getBrands({ top_type: topType }).then(r => setBrands(r.data || []));
-        if (selBrand) categoriesAPI.getSubtypes({ brand_id: selBrand.id }).then(r => setSubtypes(r.data || []));
-      }
-    } catch(e) { setCatError(e.response?.data?.error || "Save failed"); }
-    finally { setCatSaving(false); }
-  };
-
-  const deleteCat = async (id, tab) => {
-    if (!window.confirm("Remove this category?")) return;
-    try {
-      if (tab === "brands") {
-        await categoriesAPI.deleteBrand(id);
-        setBrands(prev => prev.filter(b => b.id !== id));
-        if (selBrand?.id === id) { setSelBrand(null); setSelSubtype(null); setProducts([]); }
-      } else {
-        await categoriesAPI.deleteSubtype(id);
-        setSubtypes(prev => prev.filter(s => s.id !== id));
-        if (selSubtype?.id === id) { setSelSubtype(null); setProducts([]); }
-      }
-    } catch(e) { alert(e.response?.data?.error || "Delete failed"); }
-  };
+  // ── Category CRUD modal removed ──────────────────────────────
 
   // ── CSV import ────────────────────────────────────────────────
   const handleCSVFile = e => {
@@ -785,112 +697,10 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* ── LEVEL 1: Top-type selection ── */}
-      {topType === null && (
-        <div style={{display:"flex",gap:20,marginTop:20,flexWrap:"wrap"}}>
-          {[
-            { t:"shoes",   icon:"👟", label:"Shoes",   sub:"Nike, Adidas, Jordan…" },
-            { t:"clothes", icon:"👕", label:"Clothes", sub:"Shirts, Jeans, Shorts…" },
-          ].map(({ t, icon, label, sub }) => (
-            <div key={t}
-              className="panel-card"
-              style={{flex:1,minWidth:220,cursor:"pointer",padding:30,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
-              onClick={() => setTopType(t)}
-              onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
-            >
-              <div style={{fontSize:56,marginBottom:12}}>{icon}</div>
-              <div style={{fontSize:20,fontWeight:700,color:"var(--text)"}}>{label}</div>
-              <div style={{fontSize:13,color:"var(--text3)",marginTop:6}}>{sub}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── LEVEL 2: Brand grid ── */}
-      {topType && !selBrand && (
-        <>
-          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-            <button className="tbl-btn" onClick={() => { setTopType(null); setBrands([]); }}>← Back</button>
-            <span style={{fontSize:13,color:"var(--text3)"}}>{topType === "shoes" ? "👟 Shoes" : "👕 Clothes"} › Select a brand</span>
-            {isAdmin && <button className="tbl-btn tbl-btn--edit" style={{marginLeft:"auto"}} onClick={() => openCatAdd("brands")}>+ Add Brand</button>}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
-            {brands.map(b => (
-              <div key={b.id}
-                className="panel-card"
-                style={{cursor:"pointer",padding:20,textAlign:"center",position:"relative",border:"2px solid var(--border)",transition:"border-color .2s"}}
-                onClick={() => setSelBrand(b)}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
-              >
-                {b.photo_url
-                  ? <img src={b.photo_url} alt={b.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/>
-                  : <div style={{fontSize:40,marginBottom:10}}>{topType === "shoes" ? "👟" : (CLOTH_ICONS[b.name] || "👕")}</div>
-                }
-                <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{b.name}</div>
-                {isAdmin && (
-                  <div style={{position:"absolute",top:8,right:8,display:"flex",gap:4}} onClick={e => e.stopPropagation()}>
-                    <button className="tbl-btn" style={{padding:"2px 6px",fontSize:11}} onClick={() => openCatEdit(b, "brands")}>✏</button>
-                    <button className="tbl-btn tbl-btn--del" style={{padding:"2px 6px",fontSize:11}} onClick={() => deleteCat(b.id, "brands")}>🗑</button>
-                  </div>
-                )}
-              </div>
-            ))}
-            {brands.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No brands yet. {isAdmin && "Click '+ Add Brand' to create one."}</div>}
-          </div>
-        </>
-      )}
-
-      {/* ── LEVEL 3 (shoes only): Sub-type grid ── */}
-      {topType === "shoes" && selBrand && !selSubtype && (
-        <>
-          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-            <button className="tbl-btn" onClick={() => setSelBrand(null)}>← Back</button>
-            <span style={{fontSize:13,color:"var(--text3)"}}>👟 Shoes › {selBrand.name} › Select model</span>
-            {isAdmin && <button className="tbl-btn tbl-btn--edit" style={{marginLeft:"auto"}} onClick={() => openCatAdd("subtypes")}>+ Add Model</button>}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
-            {subtypes.map(st => (
-              <div key={st.id}
-                className="panel-card"
-                style={{cursor:"pointer",padding:20,textAlign:"center",position:"relative",border:"2px solid var(--border)",transition:"border-color .2s"}}
-                onClick={() => setSelSubtype(st)}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
-              >
-                {st.photo_url
-                  ? <img src={st.photo_url} alt={st.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/>
-                  : <div style={{fontSize:38,marginBottom:10}}>👟</div>
-                }
-                <div style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{st.name}</div>
-                {isAdmin && (
-                  <div style={{position:"absolute",top:8,right:8,display:"flex",gap:4}} onClick={e => e.stopPropagation()}>
-                    <button className="tbl-btn" style={{padding:"2px 6px",fontSize:11}} onClick={() => openCatEdit(st, "subtypes")}>✏</button>
-                    <button className="tbl-btn tbl-btn--del" style={{padding:"2px 6px",fontSize:11}} onClick={() => deleteCat(st.id, "subtypes")}>🗑</button>
-                  </div>
-                )}
-              </div>
-            ))}
-            {subtypes.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No models yet. {isAdmin && "Click '+ Add Model' to create one."}</div>}
-          </div>
-        </>
-      )}
-
-      {/* ── LEVEL 4: Products table ── */}
-      {(selSubtype || (selBrand && topType === "clothes")) && (
-        <>
-          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-            <button className="tbl-btn" onClick={() => {
-              if (topType === "clothes") setSelBrand(null);
-              else setSelSubtype(null);
-              setProducts([]);
-            }}>← Back</button>
-            <span style={{fontSize:13,color:"var(--text3)"}}>
-              {topType === "shoes"
-                ? `👟 Shoes › ${selBrand?.name} › ${selSubtype?.name}`
-                : `👕 Clothes › ${selBrand?.name}`}
-            </span>
+      {/* ── Products table ── */}
+      <div>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,color:"var(--text3)"}}>All Products</span>
             <div className="pos-search-wrap" style={{marginLeft:"auto",flex:"0 0 240px"}}>
               <span className="pos-search-icon">🔍</span>
               <input className="pos-search" placeholder="Search…" value={search}
@@ -968,8 +778,8 @@ export default function Inventory() {
               </div>
             </div>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
