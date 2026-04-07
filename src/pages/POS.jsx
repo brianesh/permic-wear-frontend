@@ -291,7 +291,7 @@ export default function POS() {
   if (tumaStep) return (
     <div className="pos-page"><div className="mpesa-overlay"><div className="mpesa-modal">
       {tumaStep === "preview" && <>
-        <div className="mpesa-title" style={{ marginBottom: 16 }}>Confirm Payment</div>
+        <div className="mpesa-title" style={{ marginBottom: 16 }}>Confirm Payment via TUMA ONLINE</div>
         <div className="mpesa-preview-card">
           <div className="mpesa-preview-row">
             <span style={{ color: "var(--text3)" }}>Amount</span>
@@ -303,8 +303,8 @@ export default function POS() {
           </div>
         </div>
         <div className="mpesa-preview-note">
-          ⚠️ You will receive an M-Pesa prompt from <strong>{store.mpesa_shortcode || "880100"}</strong>. 
-          The business name on your phone may appear differently - this is normal.
+          ⚠️ You will receive an <strong>M-Pesa prompt from TUMA ONLINE</strong> on your phone. 
+          The business name may appear as <strong>PERMIC MEN'S SOLUTIONS</strong> or similar - this is normal.
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
