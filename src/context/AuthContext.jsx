@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem("se_user");
-      const token  = localStorage.getItem("se_token");
+      const token  = localStorage.getItem("token");
       if (stored && token) return JSON.parse(stored);
     } catch {}
     return null;
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
 
   // Validate token with backend on restore (don't block render — do async)
   useEffect(() => {
-    const token = localStorage.getItem("se_token");
+    const token = localStorage.getItem("token");
     const stored = localStorage.getItem("se_user");
     if (token && stored && !navigator.onLine) return; // offline — keep cached session
     if (token && stored) {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
         })
         .catch(() => {
           // Token expired or invalid — force re-login
-          localStorage.removeItem("se_token");
+          localStorage.removeItem("token");
           localStorage.removeItem("se_user");
           setUser(null);
         });
@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
     try {
       const res = await authAPI.login(identifier, password);
       const { token, user: u } = res.data;
-      localStorage.setItem("se_token", token);
+      localStorage.setItem("token", token);
       localStorage.setItem("se_user", JSON.stringify(u));
       if (u.commission_rate) {
         localStorage.setItem("se_commission_rate", String(u.commission_rate));
@@ -153,7 +153,7 @@ export function AuthProvider({ children }) {
   // ── Logout ─────────────────────────────────────────────────────
   const logout = async () => {
     try { await authAPI.logout(); } catch (_) {}
-    localStorage.removeItem("se_token");
+    localStorage.removeItem("token");
     localStorage.removeItem("se_user");
     setUser(null);
     setLoginError("");

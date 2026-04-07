@@ -26,7 +26,7 @@ const api = axios.create({
 // Set Authorization header globally for all requests
 // This ensures every request automatically includes the token
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('se_token');
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -35,10 +35,9 @@ api.interceptors.request.use(config => {
 
 // Also set global axios defaults for any non-api-instance requests
 // This is a best practice to ensure all axios requests include auth
-// Note: We use 'se_token' consistently throughout the app for token storage
 if (typeof window !== 'undefined') {
   const updateAuthHeader = () => {
-    const token = localStorage.getItem('se_token');
+    const token = localStorage.getItem('token');
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {
@@ -58,7 +57,7 @@ api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('se_token');
+      localStorage.removeItem('token');
       localStorage.removeItem('se_user');
       window.location.href = '/';
     }
