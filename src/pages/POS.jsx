@@ -18,7 +18,7 @@ function calcItem(item, rate) {
 
 function printReceipt(receipt, store = {}) {
   const nm = store.store_name || "Permic Men's Wear";
-  const lc = store.store_location || "Nairobi, Kenya";
+  const lc = store.store_location || "Ruiru, Kenya";
   const ph = store.store_phone || "+254 706 505008";
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`PERMIC:${receipt.txn}:${receipt.subtotal}`)}`;
   const rows = receipt.items.map(c => `<tr><td><b>${c.name}</b><br/><small>SKU:${c.sku} Sz:${c.size}</small></td><td style="text-align:center">${c.qty}</td><td style="text-align:right">KES ${((c.sellingPrice || num(c.sellingPrice)) * c.qty).toLocaleString()}</td></tr>`).join("");
