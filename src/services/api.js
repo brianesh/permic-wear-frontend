@@ -23,11 +23,24 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Set Authorization header globally for all requests
+// This ensures every request automatically includes the token
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('se_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
+
+// Also set global axios defaults for any non-api-instance requests
+// This is a best practice to ensure all axios requests include auth
+if (typeof window !== 'undefined') {
+  const initialToken = localStorage.getItem('se_token');
+  if (initialToken) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`;
+  }
+}
 
 api.interceptors.response.use(
   res => res,
