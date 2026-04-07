@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 
 /**
  * BackButtonHandler - Handles Android/iOS back button with double-click to exit
@@ -7,26 +6,29 @@ import { useNavigate, useLocation } from "react-router-dom";
  * Features:
  * - Syncs with phone's back button
  * - Shows "Double click to exit" message on last page
- * - Navigates back through app history
+ * - Navigates back through browser history
+ * 
+ * Note: This component works without React Router - uses browser history directly
  */
-export default function BackButtonHandler() {
-  const navigate = useNavigate();
-  const location = useLocation();
+export default function BackButtonHandler({ currentPage, onNavigateBack }) {
   const lastPressRef = useRef(0);
   const [showExitWarning, setShowExitWarning] = useState(false);
   const exitTimeoutRef = useRef(null);
+  const warningTimeoutRef = useRef(null);
 
   useEffect(() => {
-    // Handle Android/iOS back button
-    const handleBackButton = (e) => {
+    // Push a state to history so we can detect back button
+    window.history.pushState({ page: currentPage }, '', window.location.href);
+
+    const handlePopState = () => {
       // Check if we're at the root/home page
-      const isAtRoot = location.pathname === '/' || location.pathname === '/dashboard';
+      const isAtRoot = currentPage === 'dashboard' || currentPage === 'pos';
       
       if (isAtRoot) {
         // Check if user already pressed back recently (within 2 seconds)
         const now = Date.now();
         if (now - lastPressRef.current < 2000) {
-          // Second press - exit app
+          // Second press - try to exit
           if (exitTimeoutRef.current) {
             clearTimeout(exitTimeoutRef.current);
           }
@@ -38,9 +40,10 @@ export default function BackButtonHandler() {
             // For web browsers, try to go back in history
             // If no history, show warning
             if (window.history.length <= 1) {
-              // Can't exit, show warning
+              // Can't exit, stay on page
+              window.history.pushState({ page: currentPage }, '', window.location.href);
               setShowExitWarning(true);
-              exitTimeoutRef.current = setTimeout(() => {
+              warningTimeoutRef.current = setTimeout(() => {
                 setShowExitWarning(false);
               }, 2000);
               return;
@@ -50,41 +53,41 @@ export default function BackButtonHandler() {
           return;
         }
         
-        // First press - show warning
+        // First press - show warning and push state back
         lastPressRef.current = now;
         setShowExitWarning(true);
+        window.history.pushState({ page: currentPage }, '', window.location.href);
         
         // Auto-hide warning after 2 seconds
-        exitTimeoutRef.current = setTimeout(() => {
+        warningTimeoutRef.current = setTimeout(() => {
           setShowExitWarning(false);
         }, 2000);
         
-        // Prevent default back behavior
-        if (e.preventDefault) e.preventDefault();
         return;
       }
       
-      // Not at root - navigate back normally
-      navigate(-1);
-      if (e.preventDefault) e.preventDefault();
+      // Not at root - navigate back
+      if (onNavigateBack) {
+        onNavigateBack();
+      } else {
+        window.history.back();
+      }
     };
 
-    // Add event listener for Android/iOS back button
-    window.addEventListener('popstate', handleBackButton);
-    
-    // Also listen for hardware back button (Android)
-    document.addEventListener('backbutton', handleBackButton, false);
+    window.addEventListener('popstate', handlePopState);
 
     return () => {
-      window.removeEventListener('popstate', handleBackButton);
-      document.removeEventListener('backbutton', handleBackButton);
+      window.removeEventListener('popstate', handlePopState);
+      if (warningTimeoutRef.current) {
+        clearTimeout(warningTimeoutRef.current);
+      }
       if (exitTimeoutRef.current) {
         clearTimeout(exitTimeoutRef.current);
       }
     };
-  }, [navigate, location.pathname]);
+  }, [currentPage, onNavigateBack]);
 
-  // Don't render anything - this is a handler component
+  // Render the exit warning if showing
   return showExitWarning ? (
     <div style={{
       position: 'fixed',
@@ -102,6 +105,7 @@ export default function BackButtonHandler() {
       animation: 'slideUp 0.3s ease',
       textAlign: 'center',
       boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+      whiteSpace: 'nowrap',
     }}>
       Press back again to exit
     </div>

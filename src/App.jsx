@@ -73,7 +73,7 @@ function AppShell() {
         {globalSearchOpen && <GlobalSearch onClose={() => setGlobalSearchOpen(false)} onNavigate={navigate} />}
         {/* Exit warning overlay */}
         {/* Back button handler with double-click to exit */}
-        <BackButtonHandler />
+        <BackButtonHandler currentPage={activePage} onNavigateBack={() => navigate(activePage === 'pos' ? 'dashboard' : 'dashboard')} />
         {activePage === "dashboard"  && <Dashboard />}
         {activePage === "pos"        && <POS />}
         {activePage === "inventory"  && <Inventory />}
