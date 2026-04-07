@@ -291,20 +291,17 @@ export default function POS() {
   if (tumaStep) return (
     <div className="pos-page"><div className="mpesa-overlay"><div className="mpesa-modal">
       {tumaStep === "preview" && <>
-        <div className="mpesa-title" style={{ marginBottom: 16 }}>Confirm Payment via TUMA ONLINE</div>
-        <div className="mpesa-preview-card">
-          <div className="mpesa-preview-row">
-            <span style={{ color: "var(--text3)" }}>Amount</span>
-            <strong style={{ color: "var(--gold)", fontSize: 18 }}>{fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}</strong>
+        <div className="mpesa-title" style={{ marginBottom: 16 }}>Confirm Payment</div>
+        <div style={{ textAlign: "center", margin: "8px 0" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "var(--gold)", marginBottom: 4 }}>
+            Pay {fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}
           </div>
-          <div className="mpesa-preview-row">
-            <span style={{ color: "var(--text3)" }}>Business Name</span>
-            <strong>PERMIC MEN'S WEAR</strong>
+          <div style={{ fontSize: 14, color: "var(--text2)" }}>
+            Business: <strong>PERMIC MEN'S WEAR</strong>
           </div>
         </div>
         <div className="mpesa-preview-note">
-          ⚠️ You will receive an <strong>M-Pesa prompt from TUMA ONLINE</strong> on your phone. 
-          The business name may appear as <strong>PERMIC MEN'S SOLUTIONS</strong> or similar - this is normal.
+          Note: You will see <strong>TUMA ONLINE</strong> on your phone
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>

@@ -129,11 +129,10 @@ function generateSKU({ brand = '', subType = '', color = '', size = '' }) {
   return parts.join('-');
 }
 
-module.exports = { generateSKU, BRAND_CODES, MODEL_CODES, COLOR_CODES };
+// ── ES Module export (for frontend/Vite) ───────────────────────────
+export { generateSKU, BRAND_CODES, MODEL_CODES, COLOR_CODES };
 
-// ── Frontend-compatible export (also works as ES module) ──────────
-// When imported in React (Vite), use:
-//   import { generateSKU } from '../lib/skuGenerator';
-if (typeof module === 'undefined') {
-  // ESM context — nothing extra needed, already exported above
+// ── CommonJS export (for backend/Node.js) ──────────────────────────
+if (typeof module !== 'undefined') {
+  module.exports = { generateSKU, BRAND_CODES, MODEL_CODES, COLOR_CODES };
 }
