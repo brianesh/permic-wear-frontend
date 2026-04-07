@@ -8,9 +8,9 @@ const DEFAULTS = {
   store_email:     "info@permicwear.co.ke",
   currency:        "KES",
   timezone:        "Africa/Nairobi",
-  mpesa_shortcode: "880100",   // Paybill business number
-  mpesa_account:   "505008",   // Paybill account number (what customer types)
-  mpesa_phone:     "0706505008", // Phone that receives M-Pesa notifications
+  ncba_shortcode:  "880100",   // NCBA paybill/business number
+  ncba_account:    "505008",   // NCBA account number (what customer types)
+  ncba_phone:      "0706505008", // Phone that receives notifications
 };
 
 const StoreContext = createContext({ ...DEFAULTS, refreshStore: () => {} });
@@ -23,9 +23,9 @@ function mapSettings(s) {
     store_email:     s.store_email     || DEFAULTS.store_email,
     currency:        s.currency        || DEFAULTS.currency,
     timezone:        s.timezone        || DEFAULTS.timezone,
-    mpesa_shortcode: s.mpesa_shortcode || DEFAULTS.mpesa_shortcode,
-    mpesa_account:   s.mpesa_account   || DEFAULTS.mpesa_account,
-    mpesa_phone:     s.mpesa_phone     || DEFAULTS.mpesa_phone,
+    ncba_shortcode:  s.ncba_shortcode  || DEFAULTS.ncba_shortcode,
+    ncba_account:    s.ncba_account    || DEFAULTS.ncba_account,
+    ncba_phone:      s.ncba_phone      || DEFAULTS.ncba_phone,
   };
 }
 

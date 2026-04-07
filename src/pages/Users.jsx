@@ -133,7 +133,7 @@ export default function Users() {
                 <div className="user-meta-item"><span className="user-meta-label">Last Login</span><span className="user-meta-val">{u.last_login ? new Date(u.last_login).toLocaleString("en-KE") : "Never"}</span></div>
                 {u.role==="cashier"&&<div className="user-meta-item"><span className="user-meta-label">Commission</span><span className="user-meta-val" style={{color:"var(--gold)"}}>{u.commission_rate}%</span></div>}
                 {u.total_sales!=null&&<div className="user-meta-item"><span className="user-meta-label">Sales</span><span className="user-meta-val">{u.total_sales} txns</span></div>}
-                {u.store_id && (() => { const s = stores.find(s=>s.id===u.store_id); return s ? <div className="user-meta-item"><span className="user-meta-label">Store</span><span className="user-meta-val" style={{color:"var(--teal)"}}>{s.name}</span></div> : null; })()}
+                {u.store_id && (() => { const s = stores.find(s=>s.id===u.store_id); return s ? <div className="user-meta-item"><span className="user-meta-label">Store</span><span className="user-meta-val" style={{color:"var(--teal)"}}>{u.role === 'super_admin' ? `🏢 ${s.name}` : `🏪 ${s.name}${s.location ? ` · ${s.location}` : ''}`}</span></div> : null; })()}
               </div>
               {canManage(u)?(
                 <div className="user-card-actions">

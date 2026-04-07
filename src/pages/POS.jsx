@@ -314,8 +314,8 @@ export default function POS() {
         <div className="mpesa-title">Awaiting Payment</div>
         <div className="mpesa-sub">Waiting on customer's phone… ({countdown}s)</div>
         <div className="mpesa-paybill-card">
-          <div className="mpesa-paybill-row"><span>Paybill</span><strong>{store.mpesa_shortcode || "880100"}</strong></div>
-          <div className="mpesa-paybill-row"><span>Account</span><strong>{store.mpesa_account || "505008"}</strong></div>
+          <div className="mpesa-paybill-row"><span>NCBA Paybill</span><strong>{store.ncba_shortcode || "880100"}</strong></div>
+          <div className="mpesa-paybill-row"><span>Account</span><strong>{store.ncba_account || "505008"}</strong></div>
           <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(payMethod === "split" ? Math.max(0, subtotal - paidAmt) : subtotal)}</strong></div>
         </div>
         <div className="mpesa-manual-ref-section">
@@ -607,8 +607,8 @@ export default function POS() {
                 <label className="pos-cash-label">Customer Safaricom Number</label>
                 <input className="pos-cash-input" type="tel" placeholder="+254 7XX XXX XXX" value={mpesaPhone} onChange={e => setMpesaPhone(e.target.value)} />
                 <div className="mpesa-paybill-card">
-                  <div className="mpesa-paybill-row"><span>Paybill</span><strong>{store.mpesa_shortcode || "880100"}</strong></div>
-                  <div className="mpesa-paybill-row"><span>Account</span><strong>{store.mpesa_account || "505008"}</strong></div>
+                  <div className="mpesa-paybill-row"><span>NCBA Paybill</span><strong>{store.ncba_shortcode || "880100"}</strong></div>
+                  <div className="mpesa-paybill-row"><span>Account</span><strong>{store.ncba_account || "505008"}</strong></div>
                   <div className="mpesa-paybill-row"><span>Amount</span><strong>{fmt(subtotal)}</strong></div>
                 </div>
               </div>
