@@ -21,6 +21,7 @@ import AddToHome from "./components/AddToHome";
 import AppPageHeader from "./components/AppPageHeader";
 import SyncBanner from "./components/SyncBanner";
 import GlobalSearch from "./components/GlobalSearch";
+import BackButtonHandler from "./components/BackButtonHandler";
 import api from "./services/api";
 import "./index.css";
 
@@ -71,17 +72,8 @@ function AppShell() {
         <AppPageHeader onSearchClick={() => setGlobalSearchOpen(true)} />
         {globalSearchOpen && <GlobalSearch onClose={() => setGlobalSearchOpen(false)} onNavigate={navigate} />}
         {/* Exit warning overlay */}
-        {showExitWarning && (
-          <div style={{
-            position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '12px 24px',
-            borderRadius: 30, fontSize: 14, zIndex: 10000, textAlign: 'center',
-            backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)',
-            animation: 'fadeIn 0.2s ease-out',
-          }}>
-            Press back again to exit the app
-          </div>
-        )}
+        {/* Back button handler with double-click to exit */}
+        <BackButtonHandler />
         {activePage === "dashboard"  && <Dashboard />}
         {activePage === "pos"        && <POS />}
         {activePage === "inventory"  && <Inventory />}

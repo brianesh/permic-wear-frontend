@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { productsAPI, categoriesAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { generateSKU } from "../lib/skuGenerator";
+import BarcodePrinter from "../components/BarcodePrinter";
 
 // ── Size options ─────────────────────────────────────────────────
 const SIZES_SHOES         = ["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"];
@@ -55,12 +56,11 @@ function useCategoryNav() {
   };
   const goSubtypes = b => {
     setSelBrand(b); setSelSubtype(null);
-    if (b?.top_type === "shoes") {
-      setLoading(true);
-      categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
-    } else {
-      setSubtypes([]);
-    }
+    setLoading(true);
+    // For both shoes and clothes, load subtypes/sub-categories
+    // For shoes: subtypes are models (Air Force 1, Campus, etc.)
+    // For clothes: subtypes are sub-categories (Jeans, Khaki, Material under Trousers, etc.)
+    categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
   };
   const selectSubtype = st => setSelSubtype(st);
   const goBack = () => {
@@ -97,6 +97,10 @@ export default function Inventory() {
   const [csvModal, setCsvModal]     = useState(false);
   const [csvPreview, setCsvPreview] = useState([]);
   const [csvError, setCsvError]     = useState("");
+
+  // Barcode printing
+  const [barcodeSku, setBarcodeSku] = useState(null);
+  const [barcodeName, setBarcodeName] = useState("");
 
   // ── Bulk creation modal ─────────────────────────────────────────
   const [bulkModal, setBulkModal]     = useState(false);
@@ -272,6 +276,9 @@ export default function Inventory() {
       {/* ── Delete Confirm ── */}
       {delId && (<div className="modal-overlay" onClick={() => setDelId(null)}><div className="modal-card modal-card--sm" onClick={e => e.stopPropagation()}><div className="modal-header"><h3 className="modal-title">Delete Product?</h3><button className="modal-close" onClick={() => setDelId(null)}>✕</button></div><p style={{color:"var(--text2)",fontSize:13,margin:"8px 0 20px"}}>Remove <strong>{delName}</strong>? This cannot be undone.</p><div className="modal-actions"><button className="modal-cancel" onClick={() => setDelId(null)}>Cancel</button><button className="modal-save modal-save--danger" onClick={del}>Delete</button></div></div></div>)}
 
+      {/* ── Barcode Printer ── */}
+      {barcodeSku && <BarcodePrinter sku={barcodeSku} productName={barcodeName} onClose={() => { setBarcodeSku(null); setBarcodeName(""); }} />}
+
       {/* ── Bulk Add Modal ── */}
       {bulkModal && (
         <div className="modal-overlay" onClick={() => { setBulkModal(false); setBulkError(""); }}>
@@ -398,7 +405,7 @@ export default function Inventory() {
                         <td><span className={`stock-tag ${ss.c}`}>{ss.l}</span></td>
                         <td>{fmt(p.min_price)}</td>
                         <td><span style={{color:p.days_in_stock>60?"var(--teal)":"var(--text2)"}}>{p.days_in_stock}d</span></td>
-                        {isAdmin && (<td><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><button className="tbl-btn tbl-btn--edit" onClick={() => openEdit(p)}>✏ Edit</button><button className="tbl-btn" style={{background:"var(--bg2)",color:"var(--text2)",border:"1px solid var(--border)"}} onClick={() => { setForm({...p, stock:"", sku:"", photo_url: p.photo_url||""}); setPhotoPreview(p.photo_url||""); setEditId(null); setModal(true); setFormError(""); }}>+ Variant</button><button className="tbl-btn tbl-btn--del" onClick={() => { setDelId(p.id); setDelName(`${p.name} Sz${p.size}`); }}>🗑</button></div></td>)}
+                        {isAdmin && (<td><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><button className="tbl-btn tbl-btn--edit" onClick={() => openEdit(p)}>✏ Edit</button><button className="tbl-btn" style={{background:"var(--bg2)",color:"var(--text2)",border:"1px solid var(--border)"}} onClick={() => { setForm({...p, stock:"", sku:"", photo_url: p.photo_url||""}); setPhotoPreview(p.photo_url||""); setEditId(null); setModal(true); setFormError(""); }}>+ Variant</button><button className="tbl-btn tbl-btn--edit" onClick={() => { setBarcodeSku(p.sku); setBarcodeName(`${p.name} ${p.color || ''} Sz${p.size}`); }}>📄 Barcode</button><button className="tbl-btn tbl-btn--del" onClick={() => { setDelId(p.id); setDelName(`${p.name} Sz${p.size}`); }}>🗑</button></div></td>)}
                       </tr>
                     ); })}
                   </tbody>

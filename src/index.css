@@ -1704,6 +1704,17 @@ body {
   .pos-product-photo-placeholder { height: 55px; font-size: 28px; }
   .pos-cart { border-left: none !important; border-top: 1px solid var(--border); }
   .pos-cart-items { max-height: 300px; }
+  
+  /* Fix POS cart sizing on mobile */
+  .pos-cart-footer { max-height: none; overflow-y: visible; }
+  .pos-cart-items { min-height: 150px; }
+  .pos-layout { gap: 0; }
+  .pos-products { max-height: 50vh; }
+  .pos-cart { max-height: 50vh; }
+  
+  /* Better mobile POS layout */
+  .pos-page { display: flex !important; flex-direction: column; height: 100vh; }
+  .pos-header { flex-shrink: 0; }
 
   /* ── General pages ── */
   .inv-page { padding: 16px !important; }
