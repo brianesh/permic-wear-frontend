@@ -130,7 +130,24 @@ export function AuthProvider({ children }) {
     setLoginError("");
     try {
       const res = await authAPI.login(identifier, password);
-      const { token, user: u } = res.data;
+      const token = res.data?.token;
+
+      // Protect against undefined/null token
+      if (!token) {
+        console.error("No token returned from API", res.data);
+        setLoginError("Login failed: No authentication token received");
+        setLoading(false);
+        return;
+      }
+
+      const u = res.data?.user;
+      if (!u) {
+        console.error("No user data returned from API", res.data);
+        setLoginError("Login failed: No user data received");
+        setLoading(false);
+        return;
+      }
+
       localStorage.setItem("token", token);
       localStorage.setItem("se_user", JSON.stringify(u));
       if (u.commission_rate) {
