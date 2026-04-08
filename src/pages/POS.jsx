@@ -10,13 +10,24 @@ const num = v => parseInt(v, 10) || 0;
 const CLOTH_ICONS = { "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳","Jeans":"👖","Hoodies":"🧥","Jackets":"🧥","Caps":"🧢","Tracksuits":"🩱" };
 const stockC = s => s > 10 ? "var(--teal)" : s > 0 ? "var(--gold)" : "#e74c3c";
 
-// Size ordering for clothes - ensures XL comes before 2XL, etc.
+// Size ordering for clothes - ensures XL comes before 2XL, and numeric waist sizes (24-52) sort correctly
 const CLOTH_SIZE_ORDER = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL"];
+// Numeric waist sizes for bottoms (24-52)
+const WAIST_SIZE_ORDER = Array.from({length: 29}, (_, i) => String(i + 24)); // ["24","25",...,"52"]
 const compareSizes = (a, b) => {
   const na = parseFloat(a.size), nb = parseFloat(b.size);
-  if (!isNaN(na) && !isNaN(nb)) return na - nb; // Numeric sizes (shoes, waist) - ascending
+  // Numeric sizes (shoes, waist) - ascending
+  if (!isNaN(na) && !isNaN(nb)) {
+    // If both are waist sizes (24-52), use waist order
+    if (na >= 24 && na <= 52 && nb >= 24 && nb <= 52) {
+      const ia = WAIST_SIZE_ORDER.indexOf(a.size), ib = WAIST_SIZE_ORDER.indexOf(b.size);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+    }
+    return na - nb; // Default numeric sort
+  }
+  // Cloth sizes (XS-6XL)
   const ia = CLOTH_SIZE_ORDER.indexOf(a.size), ib = CLOTH_SIZE_ORDER.indexOf(b.size);
-  if (ia !== -1 && ib !== -1) return ia - ib; // Known cloth sizes - ordered
+  if (ia !== -1 && ib !== -1) return ia - ib;
   return String(a.size).localeCompare(String(b.size)); // Fallback
 };
 
