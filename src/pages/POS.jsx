@@ -280,7 +280,7 @@ export default function POS() {
     }
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, mpesa_phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
+      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, mpesa_phone: mpesaPhone || undefined, phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
       pendingSaleRef.current = (method === "M-Pesa" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
