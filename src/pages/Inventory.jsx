@@ -170,7 +170,15 @@ export default function Inventory() {
   const bulkPhotoRef = useRef();
 
   const openBulkAdd = () => {
-    setBulkForm({ name: "", brand: "", brand_id: null, sub_type_id: null, category: "", colors: [], sizes: [], minPrice: "", stock: "", distributeStock: false, photo_url: "" });
+    // Pre-fill brand/category from current navigation context
+    const brandName = cat.selBrand?.name || "";
+    const brandId = cat.selBrand?.id || null;
+    const subTypeId = cat.selSubtype?.id || null;
+    const categoryName = cat.selSubtype?.name || "";
+    setBulkForm({
+      name: "", brand: brandName, brand_id: brandId, sub_type_id: subTypeId, category: categoryName,
+      colors: [], sizes: [], minPrice: "", stock: "", distributeStock: false, photo_url: "",
+    });
     setBulkPreview([]); setBulkError(""); setBulkModal(true);
   };
 
@@ -179,7 +187,9 @@ export default function Inventory() {
   const removeSize = (s) => setBulkForm(f => ({ ...f, sizes: f.sizes.filter(x => x !== s) }));
   const addSizeFromPicker = (s) => { if (s && !bulkForm.sizes.includes(s)) setBulkForm(f => ({ ...f, sizes: [...f.sizes, s] })); };
   // Get available sizes for bulk modal based on current category context
-  const bulkSizeOpts = getSizeOpts(cat.topType || "clothes", bulkForm.brand);
+  // For clothes, use cat.selBrand?.name (the cloth type like "Jeans", "Shirts") for size lookup
+  const bulkClothType = cat.topType === "clothes" ? (cat.selBrand?.name || "") : "";
+  const bulkSizeOpts = cat.topType === "shoes" ? SIZES_SHOES : (bulkClothType ? (CLOTH_TYPE_TO_SIZES[bulkClothType] || SIZES_CLOTH_TOPS) : SIZES_CLOTH_TOPS);
   const bulkUnselectedSizes = bulkSizeOpts.filter(s => !bulkForm.sizes.includes(s));
 
   const handleBulkPhotoFile = e => {
@@ -437,7 +447,7 @@ export default function Inventory() {
               <div className="modal-field"><label>Brand</label><input type="text" value={bulkForm.brand} readOnly style={{opacity:.7}}/></div>
               <div className="modal-field"><label>Model / Category</label><input type="text" value={bulkForm.category} onChange={e => setBulkForm({...bulkForm, category:e.target.value})} placeholder="e.g. Air Force 1"/></div>
               <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Colors *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.colors.map(c => (<span key={c} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--teal)",color:"#000",fontSize:12,fontWeight:600}}>{c}<button onClick={() => removeColor(c)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#000",fontSize:14}}>✕</button></span>))}<button className="modal-cancel" style={{fontSize:11,padding:"3px 8px"}} onClick={addColor}>+ Add Color</button></div></div>
-              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Sizes *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.sizes.map(s => (<span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--purple)",color:"#fff",fontSize:12,fontWeight:600}}>{s}<button onClick={() => removeSize(s)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#fff",fontSize:14}}>✕</button></span>))}</div><div style={{display:"flex",gap:6,marginTop:6,alignItems:"center"}}><select onChange={e => { if(e.target.value) { addSizeFromPicker(e.target.value); e.target.value=""; }}} style={{flex:1,padding:"6px 8px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text1)",fontSize:13}}><option value="">+ Pick size to add…</option>{bulkUnselectedSizes.map(s => <option key={s} value={s}>{cat.topType === "shoes" ? `EU ${s}` : (CLOTH_TYPE_TO_SIZES[bulkForm.brand]?.includes(s) && s.match(/^\d+$/) ? `Waist ${s}"` : s)}</option>)}</select><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: bulkSizeOpts}))}>All Sizes</button><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: []}))}>Clear</button></div></div>
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Sizes *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.sizes.map(s => (<span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--purple)",color:"#fff",fontSize:12,fontWeight:600}}>{s}<button onClick={() => removeSize(s)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#fff",fontSize:14}}>✕</button></span>))}</div><div style={{display:"flex",gap:6,marginTop:6,alignItems:"center"}}><select onChange={e => { if(e.target.value) { addSizeFromPicker(e.target.value); e.target.value=""; }}} style={{flex:1,padding:"6px 8px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text1)",fontSize:13}}><option value="">+ Pick size to add…</option>{bulkUnselectedSizes.map(s => <option key={s} value={s}>{cat.topType === "shoes" ? `EU ${s}` : (CLOTH_TYPE_TO_SIZES[bulkClothType]?.includes(s) && s.match(/^\d+$/) ? `Waist ${s}"` : s)}</option>)}</select><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: bulkSizeOpts}))}>All Sizes</button><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: []}))}>Clear</button></div></div>
               <div className="modal-field"><label>Min Price (KES) *</label><input type="number" min="0" placeholder="4800" value={bulkForm.minPrice} onChange={e => setBulkForm({...bulkForm, minPrice:e.target.value})}/></div>
               <div className="modal-field"><label>Stock per Variant</label><input type="number" min="0" placeholder="10" value={bulkForm.stock} onChange={e => setBulkForm({...bulkForm, stock:e.target.value})}/></div>
               <div className="modal-field" style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="distributeStock" checked={bulkForm.distributeStock} onChange={e => setBulkForm({...bulkForm, distributeStock:e.target.checked})} style={{width:18,height:18}}/><label htmlFor="distributeStock" style={{cursor:"pointer",fontSize:13}}>Distribute stock across all variants (total stock)</label></div>

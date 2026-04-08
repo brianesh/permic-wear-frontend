@@ -10,6 +10,16 @@ const num = v => parseInt(v, 10) || 0;
 const CLOTH_ICONS = { "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳","Jeans":"👖","Hoodies":"🧥","Jackets":"🧥","Caps":"🧢","Tracksuits":"🩱" };
 const stockC = s => s > 10 ? "var(--teal)" : s > 0 ? "var(--gold)" : "#e74c3c";
 
+// Size ordering for clothes - ensures XL comes before 2XL, etc.
+const CLOTH_SIZE_ORDER = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL"];
+const compareSizes = (a, b) => {
+  const na = parseFloat(a.size), nb = parseFloat(b.size);
+  if (!isNaN(na) && !isNaN(nb)) return na - nb; // Numeric sizes (shoes, waist) - ascending
+  const ia = CLOTH_SIZE_ORDER.indexOf(a.size), ib = CLOTH_SIZE_ORDER.indexOf(b.size);
+  if (ia !== -1 && ib !== -1) return ia - ib; // Known cloth sizes - ordered
+  return String(a.size).localeCompare(String(b.size)); // Fallback
+};
+
 function calcItem(item, rate) {
   const st = item.sellingPrice * item.qty, mt = item.minPrice * item.qty;
   const ep = st > mt ? st - mt : 0;
@@ -566,7 +576,7 @@ export default function POS() {
                     if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No products found</div>;
                     return <div className="pos-grid">{entries.map(([key, vars]) => {
                       const rep = vars[0];
-                      const sorted = [...vars].sort((a, b) => { const na = parseFloat(a.size), nb = parseFloat(b.size); return (!isNaN(na) && !isNaN(nb)) ? na - nb : String(a.size).localeCompare(String(b.size)); });
+                      const sorted = [...vars].sort(compareSizes);
                       const minP = Math.min(...vars.map(v => parseFloat(v.min_price)));
                       const totS = vars.reduce((s, v) => s + v.stock, 0);
                       return (

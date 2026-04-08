@@ -1697,24 +1697,21 @@ body {
   /* ── POS ── */
   .pos-page { height: auto !important; overflow-x: hidden !important; overflow-y: auto !important; }
   .pos-header { padding: 16px 16px 0 !important; }
-  .pos-layout { grid-template-columns: 1fr !important; height: auto !important; }
-  .pos-products { padding: 0 16px !important; }
-  .pos-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .pos-layout { grid-template-columns: 1fr !important; height: auto !important; display: flex !important; flex-direction: column !important; }
+  .pos-products { padding: 0 16px !important; max-height: none !important; min-height: 60vh; overflow-y: auto !important; }
+  .pos-grid { grid-template-columns: repeat(2, 1fr) !important; max-height: none !important; }
   .pos-product-photo { height: 80px; }
   .pos-product-photo-placeholder { height: 55px; font-size: 28px; }
-  .pos-cart { border-left: none !important; border-top: 1px solid var(--border); }
-  .pos-cart-items { max-height: 300px; }
-  
-  /* Fix POS cart sizing on mobile */
+  .pos-cart { border-left: none !important; border-top: 1px solid var(--border); max-height: none !important; min-height: auto; }
+  .pos-cart-items { max-height: none !important; min-height: 150px; }
   .pos-cart-footer { max-height: none; overflow-y: visible; }
-  .pos-cart-items { min-height: 150px; }
   .pos-layout { gap: 0; }
-  .pos-products { max-height: 50vh; }
-  .pos-cart { max-height: 50vh; }
   
-  /* Better mobile POS layout */
-  .pos-page { display: flex !important; flex-direction: column; height: 100vh; }
+  /* Better mobile POS layout - use flex column with proper scrolling */
+  .pos-page { display: flex !important; flex-direction: column !important; height: 100vh; }
   .pos-header { flex-shrink: 0; }
+  .pos-products { flex: 1 1 0; min-height: 0; }
+  .pos-cart { flex-shrink: 0; }
 
   /* ── General pages ── */
   .inv-page { padding: 16px !important; }
