@@ -5,9 +5,40 @@ import { generateSKU } from "../lib/skuGenerator";
 import BarcodePrinter from "../components/BarcodePrinter";
 
 // ── Size options ─────────────────────────────────────────────────
-const SIZES_SHOES = ["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"];
-// All cloth sizes combined (XS-6XL and 26-50)
-const SIZES_CLOTH_ALL = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50"];
+const SIZES_SHOES = [
+  "33","34","35","36","37","38","39","40",
+  "41","42","43","44","45","46","47","48"
+];
+
+const SIZES_CLOTH_ALL = [
+  "XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL",
+  "26","27","28","29","30","31","32","33","34","35",
+  "36","37","38","39","40","41","42","43","44","45",
+  "46","47","48","49","50"
+];
+
+// ✅ FIXED: strict logic (NO fallback to shoes)
+const getSizeOpts = (topType, categoryName = "") => {
+  const type = (topType || "").toLowerCase();
+
+  // SHOES
+  if (type === "shoes") {
+    return SIZES_SHOES;
+  }
+
+  // NUMERIC CLOTHES (TROUSERS / JEANS)
+  const numericCategories = ["trousers", "jeans", "shorts"];
+
+  if (numericCategories.includes((categoryName || "").toLowerCase())) {
+    return [
+      "26","27","28","29","30","31","32","33","34","35","36","37","38",
+      "39","40","41","42","43","44","45","46","47","48","49","50"
+    ];
+  }
+
+  // DEFAULT CLOTHES (SHIRTS ETC)
+  return SIZES_CLOTH_ALL;
+};
 
 const CLOTH_ICONS = {
   "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳",
@@ -16,8 +47,6 @@ const CLOTH_ICONS = {
 
 const fmt      = n => `KES ${Number(n||0).toLocaleString()}`;
 const stockSt  = s => +s<=2?{l:"Critical",c:"stock-tag--critical"} : +s<=5?{l:"Low",c:"stock-tag--low"} : {l:"OK",c:"stock-tag--ok"};
-const getSizeOpts = (topType, brandName) =>
-  topType === "shoes" ? SIZES_SHOES : SIZES_CLOTH_ALL;
 
 // ── Empty form factories ─────────────────────────────────────────
 const emptyForm = (topType = "shoes") => ({
@@ -217,11 +246,29 @@ export default function Inventory() {
 
   // ── Product modal ─────────────────────────────────────────────
   const openAdd = () => {
-    const f = emptyForm(cat.topType || "shoes");
-    if (cat.selBrand) { f.brand = cat.selBrand.name; f.brand_id = cat.selBrand.id; }
-    if (cat.selSubtype) { f.sub_type_id = cat.selSubtype.id; f.category = cat.selSubtype.name; }
-    f.size = getSizeOpts(f.top_type, f.brand)[0] || "";
-    setForm(f); setEditId(null); setPhotoPreview(""); setModal(true); setFormError("");
+    const topType = cat.topType || "shoes";
+  
+    const f = emptyForm(topType);
+  
+    if (cat.selBrand) {
+      f.brand = cat.selBrand.name;
+      f.brand_id = cat.selBrand.id;
+    }
+  
+    if (cat.selSubtype) {
+      f.sub_type_id = cat.selSubtype.id;
+      f.category = cat.selSubtype.name;
+    }
+  
+    // ✅ Force correct size options
+    const sizes = getSizeOpts(topType, f.category);
+    f.size = sizes[0] || "";
+  
+    setForm(f);
+    setEditId(null);
+    setPhotoPreview("");
+    setModal(true);
+    setFormError("");
   };
 
   const openEdit = p => {
@@ -356,7 +403,7 @@ export default function Inventory() {
     } catch(e) { console.error("Delete failed:", e); }
   };
 
-  const sizeOpts = getSizeOpts(form.top_type, form.brand);
+  const sizeOpts = getSizeOpts(form.top_type, form.category);
 
   // ── Render ────────────────────────────────────────────────────
   return (
