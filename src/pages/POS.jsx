@@ -294,11 +294,11 @@ export default function POS() {
       const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
-      pendingSaleRef.current = (method === "M-Pesa" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
-      if (method === "M-Pesa" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
+      pendingSaleRef.current = (method === "Tuma" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
+      if (method === "Tuma" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
       else applyStockDed(items);
 
-      if ((method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone) {
+      if ((method === "Tuma" || (method === "Split" && mp > 0)) && mpesaPhone) {
         try {
           const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
           // Use the reference from backend (always available) for polling
