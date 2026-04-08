@@ -3,6 +3,7 @@ import { salesAPI, usersAPI } from "../services/api";
 
 const fmt = n => `KES ${Number(n||0).toLocaleString()}`;
 const METHODS = ["All","Cash","M-Pesa","Split"];
+const STATUS_FILTERS = ["All","completed","pending_mpesa","pending_split","failed"];
 
 export default function SalesRecords() {
   const [sales, setSales]         = useState([]);
@@ -12,6 +13,7 @@ export default function SalesRecords() {
   const [search, setSearch]       = useState("");
   const [cashier, setCashier]     = useState("All");
   const [method, setMethod]       = useState("All");
+  const [status, setStatus]       = useState("All"); // Default: show all (including completed)
   const [dateFrom, setDateFrom]   = useState("");
   const [dateTo, setDateTo]       = useState("");
   const [expanded, setExpanded]   = useState(null);
@@ -22,14 +24,14 @@ export default function SalesRecords() {
     usersAPI.getAll().then(res => setCashiers(["All", ...res.data.filter(u=>u.role==="cashier").map(u=>u.name)])).catch(()=>{});
   }, []);
 
-  useEffect(() => { load(); }, [page, cashier, method, dateFrom, dateTo]);
+  useEffect(() => { load(); }, [page, cashier, method, status, dateFrom, dateTo]);
 
   const load = () => {
     setLoading(true);
-    const selectedCashier = cashiers.find((_,i) => i > 0 && cashiers[i] === cashier);
     salesAPI.getAll({
       from: dateFrom || undefined, to: dateTo || undefined,
       method: method !== "All" ? method : undefined,
+      status: status !== "All" ? status : undefined,
       page, limit: PER,
     })
     .then(res => { setSales(res.data.sales || []); setTotal(res.data.total || 0); })
@@ -74,6 +76,7 @@ export default function SalesRecords() {
         </div>
         <div className="filter-group">{cashiers.map(c=><button key={c} className={`filter-chip ${cashier===c?"filter-chip--active":""}`} onClick={()=>{setCashier(c);setPage(1);}}>{c}</button>)}</div>
         <div className="filter-group">{METHODS.map(m=><button key={m} className={`filter-chip ${method===m?"filter-chip--active":""}`} onClick={()=>{setMethod(m);setPage(1);}}>{m}</button>)}</div>
+        <div className="filter-group">{STATUS_FILTERS.map(s=><button key={s} className={`filter-chip ${status===s?"filter-chip--active":""}`} onClick={()=>{setStatus(s);setPage(1);}}>{s}</button>)}</div>
         <div className="date-filter-group">
           <input type="date" className="date-input" value={dateFrom} onChange={e=>{setDateFrom(e.target.value);setPage(1);}}/>
           <span style={{color:"var(--text3)"}}>to</span>
@@ -98,6 +101,12 @@ export default function SalesRecords() {
                     <td className="profit">+{fmt(s.extra_profit)}</td>
                     <td style={{color:"var(--gold)",fontWeight:600}}>💰 {fmt(s.commission)}</td>
                     <td><span className={`method-tag method-tag--${s.payment_method==="Cash"?"cash":s.payment_method==="M-Pesa"?"m-pesa":"split"}`}>{s.payment_method}</span></td>
+                    <td>
+                      {s.status === 'completed' && <span style={{fontSize:11,color:"var(--green)"}}>✓</span>}
+                      {s.status === 'pending_mpesa' && <span style={{fontSize:11,color:"var(--gold)"}}>⏳</span>}
+                      {s.status === 'pending_split' && <span style={{fontSize:11,color:"var(--gold)"}}>⏳</span>}
+                      {s.status === 'failed' && <span style={{fontSize:11,color:"var(--red)"}}>✕</span>}
+                    </td>
                     <td style={{color:"var(--text3)",fontSize:12}}>{expanded===s.id?"▲":"▼"}</td>
                   </tr>
                   {expanded===s.id&&(

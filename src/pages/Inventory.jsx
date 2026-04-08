@@ -116,6 +116,16 @@ export default function Inventory() {
   const [delBrandId, setDelBrandId] = useState(null);
   const [delBrandName, setDelBrandName] = useState("");
 
+  // ── Sub-Type (Model) Management Modals ──────────────────────────
+  const [subtypeModal, setSubtypeModal]     = useState(false);
+  const [subtypeForm, setSubtypeForm]       = useState({ name: "", brand_id: null, photo_url: "" });
+  const [subtypeEditId, setSubtypeEditId]   = useState(null);
+  const [subtypeSaving, setSubtypeSaving]   = useState(false);
+  const [subtypeError, setSubtypeError]     = useState("");
+
+  const [delSubtypeId, setDelSubtypeId]     = useState(null);
+  const [delSubtypeName, setDelSubtypeName] = useState("");
+
   const [csvModal, setCsvModal]     = useState(false);
   const [csvPreview, setCsvPreview] = useState([]);
   const [csvError, setCsvError]     = useState("");
@@ -311,6 +321,36 @@ export default function Inventory() {
     } catch(e) { console.error("Delete failed:", e); }
   };
 
+  // ── Sub-Type (Model) Management ─────────────────────────────────
+  const openSubtypeAdd = () => {
+    setSubtypeForm({ name: "", brand_id: cat.selBrand?.id || null, photo_url: "" });
+    setSubtypeEditId(null); setSubtypeError(""); setSubtypeModal(true);
+  };
+  const openSubtypeEdit = (subtype) => {
+    setSubtypeForm({ name: subtype.name, brand_id: subtype.brand_id, photo_url: subtype.photo_url || "" });
+    setSubtypeEditId(subtype.id); setSubtypeError(""); setSubtypeModal(true);
+  };
+  const saveSubtype = async () => {
+    if (!subtypeForm.name || !subtypeForm.brand_id) { setSubtypeError("Name and brand are required"); return; }
+    setSubtypeSaving(true); setSubtypeError("");
+    try {
+      if (subtypeEditId) {
+        await categoriesAPI.updateSubtype(subtypeEditId, subtypeForm);
+      } else {
+        await categoriesAPI.createSubtype(subtypeForm);
+      }
+      setSubtypeModal(false); cat.goSubtypes(cat.selBrand); // Refresh subtypes list
+    } catch(e) { setSubtypeError(e.response?.data?.error || "Save failed"); }
+    finally { setSubtypeSaving(false); }
+  };
+  const deleteSubtype = async () => {
+    try {
+      await categoriesAPI.deleteSubtype(delSubtypeId);
+      setDelSubtypeId(null); setDelSubtypeName("");
+      cat.goSubtypes(cat.selBrand); // Refresh subtypes list
+    } catch(e) { console.error("Delete failed:", e); }
+  };
+
   const sizeOpts = getSizeOpts(form.top_type, form.brand);
 
   // ── Render ────────────────────────────────────────────────────
@@ -413,6 +453,32 @@ export default function Inventory() {
         </div>
       )}
 
+      {/* ── Sub-Type (Model) Add/Edit Modal ── */}
+      {subtypeModal && (
+        <div className="modal-overlay" onClick={() => setSubtypeModal(false)}>
+          <div className="modal-card" style={{maxWidth:420}} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3 className="modal-title">{subtypeEditId ? "Edit Model" : "Add Model"}</h3><button className="modal-close" onClick={() => setSubtypeModal(false)}>✕</button></div>
+            <div className="modal-grid">
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Model Name *</label><input type="text" placeholder="e.g. Air Force 1, Slim Fit" value={subtypeForm.name} onChange={e => setSubtypeForm({...subtypeForm, name: e.target.value})}/></div>
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Photo URL (optional)</label><input type="text" placeholder="https://..." value={subtypeForm.photo_url} onChange={e => setSubtypeForm({...subtypeForm, photo_url: e.target.value})}/></div>
+            </div>
+            {subtypeError && <div className="lf-error" style={{marginTop:12}}><span>⚠</span> {subtypeError}</div>}
+            <div className="modal-actions"><button className="modal-cancel" onClick={() => setSubtypeModal(false)}>Cancel</button><button className="modal-save" onClick={saveSubtype} disabled={subtypeSaving}>{subtypeSaving ? "Saving…" : subtypeEditId ? "Save Changes" : "Add Model"}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Sub-Type Confirm ── */}
+      {delSubtypeId && (
+        <div className="modal-overlay" onClick={() => setDelSubtypeId(null)}>
+          <div className="modal-card modal-card--sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3 className="modal-title">Delete Model?</h3><button className="modal-close" onClick={() => setDelSubtypeId(null)}>✕</button></div>
+            <p style={{color:"var(--text2)",fontSize:13,margin:"8px 0 20px"}}>Remove <strong>{delSubtypeName}</strong>? This will hide the model and may affect products using it.</p>
+            <div className="modal-actions"><button className="modal-cancel" onClick={() => setDelSubtypeId(null)}>Cancel</button><button className="modal-save modal-save--danger" onClick={deleteSubtype}>Delete</button></div>
+          </div>
+        </div>
+      )}
+
       {/* ── Page Header ── */}
       <div className="page-header">
         <div>
@@ -474,16 +540,28 @@ export default function Inventory() {
       )}
 
       {cat.level === "subtypes" && (
-        <><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><button className="tbl-btn" onClick={() => cat.goBrands(cat.topType)}>← Back</button><span style={{fontSize:12,color:"var(--text3)"}}>👟 {cat.selBrand?.name} › Model</span></div>
+        <><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <button className="tbl-btn" onClick={() => cat.goBrands(cat.topType)}>← Back</button>
+            <span style={{fontSize:12,color:"var(--text3)"}}>👟 {cat.selBrand?.name} › Model</span>
+            {isAdmin && <button className="primary-btn" style={{fontSize:12,padding:"6px 12px",marginLeft:"auto"}} onClick={openSubtypeAdd}>+ Add Model</button>}
+          </div>
           {cat.loading ? <div style={{padding:30,textAlign:"center",color:"var(--text3)"}}>Loading…</div> : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
               {cat.subtypes.map(st => (
-                <div key={st.id} className="panel-card" style={{cursor:"pointer",padding:20,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}} onClick={() => cat.setSelSubtype(st)} onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                  {st.photo_url ? <img src={st.photo_url} alt={st.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/> : <div style={{fontSize:38,marginBottom:10}}>👟</div>}
-                  <div style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{st.name}</div>
+                <div key={st.id} className="panel-card" style={{cursor:"pointer",padding:16,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s",position:"relative"}} onClick={() => cat.setSelSubtype(st)} onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                  {isAdmin && (
+                    <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:10}} onClick={e => e.stopPropagation()}>
+                      <button className="tbl-btn" style={{padding:"3px 6px",fontSize:11}} onClick={() => openSubtypeEdit(st)} title="Edit">✏</button>
+                      <button className="tbl-btn tbl-btn--del" style={{padding:"3px 6px",fontSize:11}} onClick={() => { setDelSubtypeId(st.id); setDelSubtypeName(st.name); }} title="Delete">🗑</button>
+                    </div>
+                  )}
+                  <div style={{marginTop: isAdmin ? 20 : 0}}>
+                    {st.photo_url ? <img src={st.photo_url} alt={st.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/> : <div style={{fontSize:38,marginBottom:10}}>👟</div>}
+                    <div style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{st.name}</div>
+                  </div>
                 </div>
               ))}
-              {cat.subtypes.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No models yet.</div>}
+              {cat.subtypes.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No models yet.{isAdmin && <><br/><button className="link-btn" onClick={openSubtypeAdd}>Add first model →</button></>}</div>}
             </div>
           )}
         </>
