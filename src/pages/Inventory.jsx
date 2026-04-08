@@ -6,8 +6,8 @@ import BarcodePrinter from "../components/BarcodePrinter";
 
 // ── Size options ─────────────────────────────────────────────────
 const SIZES_SHOES = ["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"];
-// All cloth sizes combined (XS-6XL and 24-52)
-const SIZES_CLOTH_ALL = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL","24","25","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50","51","52"];
+// All cloth sizes combined (XS-6XL and 26-50)
+const SIZES_CLOTH_ALL = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50"];
 
 const CLOTH_ICONS = {
   "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳",
