@@ -112,7 +112,7 @@ export default function AddToHome() {
         deferredPrompt.current = e;
         // Show our custom install banner
         setShow(true);
-        console.log('[PWA] beforeinstallprompt captured, banner will show');
+        console.log('[PWA] Install prompt captured - user can click "Install Now" to trigger native dialog');
       };
       window.addEventListener("beforeinstallprompt", handler);
       
@@ -120,7 +120,7 @@ export default function AddToHome() {
       // but without native install support
       const t = setTimeout(() => {
         if (!deferredPrompt.current) {
-          console.log('[PWA] beforeinstallprompt not fired, showing manual install banner');
+          console.log('[PWA] Native install not available, showing manual instructions');
           setShow(true);
         }
       }, 3000);
