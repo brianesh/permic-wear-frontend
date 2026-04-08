@@ -465,7 +465,7 @@ export default function POS() {
             <div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", background: "var(--bg2)", border: "2px solid var(--border)", borderRadius: 10, padding: "8px 12px", marginBottom: 10 }}>
                 <span>🔍</span>
-                <input ref={searchRef} value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Name, brand, color, size… (press /)" style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text1)", fontSize: 15 }} />
+                <input id="pos-search-input" name="search" ref={searchRef} value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Name, brand, color, size… (press /)" style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text1)", fontSize: 15 }} aria-label="Search products" />
                 {searching && <span style={{ color: "var(--text3)", fontSize: 12 }}>…</span>}
                 {searchQ && <button onClick={() => setSearchQ("")} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 16 }}>✕</button>}
               </div>
