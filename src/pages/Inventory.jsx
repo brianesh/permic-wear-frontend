@@ -11,10 +11,33 @@ const SIZES_CLOTH_BOTTOMS = ["24","26","28","30","32","34","36","38","40","42","
 const SIZES_CLOTH_FREE    = ["Free Size","XS","S","M","L","XL","2XL","3XL","4XL","5XL"];
 
 const CLOTH_TYPE_TO_SIZES = {
-  "Shirts":SIZES_CLOTH_TOPS, "T-Shirts":SIZES_CLOTH_TOPS, "Vests":SIZES_CLOTH_TOPS,
-  "Hoodies":SIZES_CLOTH_TOPS, "Jackets":SIZES_CLOTH_TOPS, "Tracksuits":SIZES_CLOTH_TOPS,
-  "Trousers":SIZES_CLOTH_BOTTOMS, "Jeans":SIZES_CLOTH_BOTTOMS, "Shorts":SIZES_CLOTH_BOTTOMS,
-  "Belts":SIZES_CLOTH_FREE, "Caps":SIZES_CLOTH_FREE,
+  // Tops - use XS to 6XL sizing
+  "Shirts": SIZES_CLOTH_TOPS,
+  "T-Shirts": SIZES_CLOTH_TOPS,
+  "Vests": SIZES_CLOTH_TOPS,
+  "Hoodies": SIZES_CLOTH_TOPS,
+  "Jackets": SIZES_CLOTH_TOPS,
+  "Tracksuits": SIZES_CLOTH_TOPS,
+  "Sweaters": SIZES_CLOTH_TOPS,
+  "Polo": SIZES_CLOTH_TOPS,
+  "Blazers": SIZES_CLOTH_TOPS,
+  "Coats": SIZES_CLOTH_TOPS,
+  
+  // Bottoms - use waist sizes (26-50)
+  "Trousers": SIZES_CLOTH_BOTTOMS,
+  "Jeans": SIZES_CLOTH_BOTTOMS,
+  "Shorts": SIZES_CLOTH_BOTTOMS,
+  "Cargo": SIZES_CLOTH_BOTTOMS,
+  "Chinos": SIZES_CLOTH_BOTTOMS,
+  "Sweatpants": SIZES_CLOTH_BOTTOMS,
+  
+  // Accessories - use free size or special sizing
+  "Belts": SIZES_CLOTH_FREE,
+  "Caps": SIZES_CLOTH_FREE,
+  "Hats": SIZES_CLOTH_FREE,
+  "Socks": ["One Size", "Free Size"],
+  "Ties": ["One Size", "Free Size"],
+  "Scarves": ["One Size", "Free Size"],
 };
 
 const CLOTH_ICONS = {
