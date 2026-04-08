@@ -56,19 +56,13 @@ function useCategoryNav() {
   };
   const goSubtypes = b => {
     setSelBrand(b); setSelSubtype(null);
-    setLoading(true);
-    // For both shoes and clothes, load subtypes/sub-categories
-    // For shoes: subtypes are models (Air Force 1, Campus, etc.)
-    // For clothes: subtypes are sub-categories (Jeans, Khaki, Material under Trousers, etc.)
-    categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => {
-      const data = r.data || [];
-      if (data.length > 0) {
-        setSubtypes(data);
-      } else {
-        // No sub-types for this clothes brand - go directly to products
-        setSubtypes([]);
-      }
-    }).catch(() => setSubtypes([])).finally(() => setLoading(false));
+    if (b?.top_type === "shoes") {
+      setLoading(true);
+      categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
+    } else {
+      // For clothes, brand IS the type - go straight to products
+      setSubtypes([]);
+    }
   };
   const selectSubtype = st => setSelSubtype(st);
   const goBack = () => {
@@ -77,9 +71,10 @@ function useCategoryNav() {
     else if (level === "subtypes") { setSelBrand(null); setSelSubtype(null); }
     else if (level === "brands") { goTop(); }
   };
-  // For clothes, if no subtypes exist, go directly to products after selecting brand
-  const level = topType === null ? "top" : selBrand === null ? "brands" : (selSubtype === null && subtypes.length > 0) ? "subtypes" : "products";
-  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack };
+  // For clothes: skip subtypes level and go directly to products after selecting a brand
+  const shouldSkipSubtypes = topType === "clothes" && selBrand !== null;
+  const level = topType === null ? "top" : selBrand === null ? "brands" : shouldSkipSubtypes ? "products" : (selSubtype === null ? "subtypes" : "products");
+  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack, shouldSkipSubtypes };
 }
 
 export default function Inventory() {
@@ -102,6 +97,24 @@ export default function Inventory() {
 
   const [delId, setDelId]           = useState(null);
   const [delName, setDelName]       = useState("");
+
+  // ── Category/Brand Management Modals ──────────────────────────
+  const [catModal, setCatModal]     = useState(false);
+  const [catForm, setCatForm]       = useState({ name: "", top_type: "", photo_url: "" });
+  const [catEditId, setCatEditId]   = useState(null);
+  const [catSaving, setCatSaving]   = useState(false);
+  const [catError, setCatError]     = useState("");
+
+  const [brandModal, setBrandModal] = useState(false);
+  const [brandForm, setBrandForm]   = useState({ name: "", top_type: "", photo_url: "" });
+  const [brandEditId, setBrandEditId] = useState(null);
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [brandError, setBrandError] = useState("");
+
+  const [delCatId, setDelCatId]     = useState(null);
+  const [delCatName, setDelCatName] = useState("");
+  const [delBrandId, setDelBrandId] = useState(null);
+  const [delBrandName, setDelBrandName] = useState("");
 
   const [csvModal, setCsvModal]     = useState(false);
   const [csvPreview, setCsvPreview] = useState([]);
@@ -244,6 +257,60 @@ export default function Inventory() {
 
   const confirmImport = async () => { setSaving(true); try { await productsAPI.bulkImport(csvPreview); setCsvModal(false); setCsvPreview([]); refreshProducts(); } catch(e) { setCsvError(e.response?.data?.error || "Import failed"); } finally { setSaving(false); } };
 
+  // ── Category (Top Type) Management ─────────────────────────────
+  const openCatAdd = (topType) => {
+    setCatForm({ name: "", top_type: topType || "", photo_url: "" });
+    setCatEditId(null); setCatError(""); setCatModal(true);
+  };
+  const openCatEdit = (topType, label) => {
+    setCatForm({ name: label, top_type: topType, photo_url: "" });
+    setCatEditId(topType); setCatError(""); setCatModal(true);
+  };
+  const saveCat = async () => {
+    if (!catForm.name || !catForm.top_type) { setCatError("Name and type are required"); return; }
+    setCatSaving(true); setCatError("");
+    try {
+      // Categories are the top-level types (shoes/clothes) - they're predefined
+      // For now, we just close the modal - in a real implementation, you might want to allow custom categories
+      setCatModal(false);
+    } catch(e) { setCatError(e.response?.data?.error || "Save failed"); }
+    finally { setCatSaving(false); }
+  };
+  const deleteCat = async () => {
+    // Categories (top types) are predefined - cannot be deleted
+    setDelCatId(null); setDelCatName("");
+  };
+
+  // ── Brand Management ───────────────────────────────────────────
+  const openBrandAdd = () => {
+    setBrandForm({ name: "", top_type: cat.topType || "shoes", photo_url: "" });
+    setBrandEditId(null); setBrandError(""); setBrandModal(true);
+  };
+  const openBrandEdit = (brand) => {
+    setBrandForm({ name: brand.name, top_type: brand.top_type, photo_url: brand.photo_url || "" });
+    setBrandEditId(brand.id); setBrandError(""); setBrandModal(true);
+  };
+  const saveBrand = async () => {
+    if (!brandForm.name || !brandForm.top_type) { setBrandError("Name and type are required"); return; }
+    setBrandSaving(true); setBrandError("");
+    try {
+      if (brandEditId) {
+        await categoriesAPI.updateBrand(brandEditId, brandForm);
+      } else {
+        await categoriesAPI.createBrand(brandForm);
+      }
+      setBrandModal(false); cat.goBrands(cat.topType); // Refresh brands list
+    } catch(e) { setBrandError(e.response?.data?.error || "Save failed"); }
+    finally { setBrandSaving(false); }
+  };
+  const deleteBrand = async () => {
+    try {
+      await categoriesAPI.deleteBrand(delBrandId);
+      setDelBrandId(null); setDelBrandName("");
+      cat.goBrands(cat.topType); // Refresh brands list
+    } catch(e) { console.error("Delete failed:", e); }
+  };
+
   const sizeOpts = getSizeOpts(form.top_type, form.brand);
 
   // ── Render ────────────────────────────────────────────────────
@@ -319,6 +386,33 @@ export default function Inventory() {
       {/* ── CSV Modal ── */}
       {csvModal && (<div className="modal-overlay" onClick={() => { setCsvModal(false); setCsvPreview([]); setCsvError(""); }}><div className="modal-card" style={{maxWidth:620}} onClick={e => e.stopPropagation()}><div className="modal-header"><h3 className="modal-title">Bulk Import CSV</h3><button className="modal-close" onClick={() => { setCsvModal(false); setCsvPreview([]); }}>✕</button></div><div className="csv-info-box"><span>Columns: <code>name, brand, category, top_type, size, color, stock, min_price, sku</code></span><button className="link-btn" onClick={downloadTemplate}>⬇ Template</button></div><div className="csv-drop-area"><input ref={fileRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleCSVFile}/><button className="csv-pick-btn" onClick={() => fileRef.current.click()}>📂 Choose CSV File</button></div>{csvError && <div className="lf-error" style={{marginTop:12}}><span>⚠</span> {csvError}</div>}{csvPreview.length > 0 && <div style={{marginTop:12,fontSize:13,color:"var(--green)",fontWeight:600}}>✓ {csvPreview.length} rows ready to import</div>}<div className="modal-actions"><button className="modal-cancel" onClick={() => { setCsvModal(false); setCsvPreview([]); setCsvError(""); }}>Cancel</button><button className="modal-save" disabled={!csvPreview.length || saving} onClick={confirmImport}>{saving ? "Importing…" : `Import ${csvPreview.length} Products`}</button></div></div></div>)}
 
+      {/* ── Brand Add/Edit Modal ── */}
+      {brandModal && (
+        <div className="modal-overlay" onClick={() => setBrandModal(false)}>
+          <div className="modal-card" style={{maxWidth:420}} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3 className="modal-title">{brandEditId ? "Edit Brand" : "Add Brand"}</h3><button className="modal-close" onClick={() => setBrandModal(false)}>✕</button></div>
+            <div className="modal-grid">
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Brand Name *</label><input type="text" placeholder="e.g. Nike, Adidas" value={brandForm.name} onChange={e => setBrandForm({...brandForm, name: e.target.value})}/></div>
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Type</label><select value={brandForm.top_type} onChange={e => setBrandForm({...brandForm, top_type: e.target.value})}><option value="shoes">👟 Shoes</option><option value="clothes">👕 Clothes</option></select></div>
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Photo URL (optional)</label><input type="text" placeholder="https://..." value={brandForm.photo_url} onChange={e => setBrandForm({...brandForm, photo_url: e.target.value})}/></div>
+            </div>
+            {brandError && <div className="lf-error" style={{marginTop:12}}><span>⚠</span> {brandError}</div>}
+            <div className="modal-actions"><button className="modal-cancel" onClick={() => setBrandModal(false)}>Cancel</button><button className="modal-save" onClick={saveBrand} disabled={brandSaving}>{brandSaving ? "Saving…" : brandEditId ? "Save Changes" : "Add Brand"}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Brand Confirm ── */}
+      {delBrandId && (
+        <div className="modal-overlay" onClick={() => setDelBrandId(null)}>
+          <div className="modal-card modal-card--sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3 className="modal-title">Delete Brand?</h3><button className="modal-close" onClick={() => setDelBrandId(null)}>✕</button></div>
+            <p style={{color:"var(--text2)",fontSize:13,margin:"8px 0 20px"}}>Remove <strong>{delBrandName}</strong>? This will hide the brand and may affect products using it.</p>
+            <div className="modal-actions"><button className="modal-cancel" onClick={() => setDelBrandId(null)}>Cancel</button><button className="modal-save modal-save--danger" onClick={deleteBrand}>Delete</button></div>
+          </div>
+        </div>
+      )}
+
       {/* ── Page Header ── */}
       <div className="page-header">
         <div>
@@ -352,16 +446,28 @@ export default function Inventory() {
       )}
 
       {cat.level === "brands" && (
-        <><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><button className="tbl-btn" onClick={cat.goTop}>← Back</button><span style={{fontSize:12,color:"var(--text3)"}}>{cat.topType === "shoes" ? "👟" : "👕"} › Brand</span></div>
+        <><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <button className="tbl-btn" onClick={cat.goTop}>← Back</button>
+            <span style={{fontSize:12,color:"var(--text3)"}}>{cat.topType === "shoes" ? "👟" : "👕"} › Brand</span>
+            {isAdmin && <button className="primary-btn" style={{fontSize:12,padding:"6px 12px",marginLeft:"auto"}} onClick={openBrandAdd}>+ Add Brand</button>}
+          </div>
           {cat.loading ? <div style={{padding:30,textAlign:"center",color:"var(--text3)"}}>Loading…</div> : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14}}>
               {cat.brands.map(b => (
-                <div key={b.id} className="panel-card" style={{cursor:"pointer",padding:20,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}} onClick={() => cat.goSubtypes(b)} onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                  {b.photo_url ? <img src={b.photo_url} alt={b.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/> : <div style={{fontSize:40,marginBottom:10}}>{cat.topType === "shoes" ? "👟" : (CLOTH_ICONS[b.name] || "👕")}</div>}
-                  <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{b.name}</div>
+                <div key={b.id} className="panel-card" style={{cursor:"pointer",padding:16,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s",position:"relative"}} onClick={() => cat.goSubtypes(b)} onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                  {isAdmin && (
+                    <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:10}} onClick={e => e.stopPropagation()}>
+                      <button className="tbl-btn" style={{padding:"3px 6px",fontSize:11}} onClick={() => openBrandEdit(b)} title="Edit">✏</button>
+                      <button className="tbl-btn tbl-btn--del" style={{padding:"3px 6px",fontSize:11}} onClick={() => { setDelBrandId(b.id); setDelBrandName(b.name); }} title="Delete">🗑</button>
+                    </div>
+                  )}
+                  <div style={{marginTop: isAdmin ? 20 : 0}}>
+                    {b.photo_url ? <img src={b.photo_url} alt={b.name} style={{width:64,height:64,objectFit:"contain",borderRadius:8,margin:"0 auto 10px"}}/> : <div style={{fontSize:40,marginBottom:10}}>{cat.topType === "shoes" ? "👟" : (CLOTH_ICONS[b.name] || "👕")}</div>}
+                    <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{b.name}</div>
+                  </div>
                 </div>
               ))}
-              {cat.brands.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No brands yet.</div>}
+              {cat.brands.length === 0 && <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--text3)"}}>No brands yet.{isAdmin && <><br/><button className="link-btn" onClick={openBrandAdd}>Add first brand →</button></>}</div>}
             </div>
           )}
         </>

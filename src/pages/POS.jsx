@@ -62,6 +62,8 @@ function useCategoryNav(pushHistory) {
       setSubtypes([]);
     }
   };
+  // For clothes: check if we should go directly to products (no subtypes)
+  const shouldSkipSubtypes = topType === "clothes" && selBrand !== null;
   const selectSubtype = st => {
     setSelSubtype(st);
     if (pushHistory) pushHistory(`category-products-${st.id}`);
@@ -72,8 +74,9 @@ function useCategoryNav(pushHistory) {
     else if (level === "subtypes") { setSelBrand(null); setSelSubtype(null); }
     else if (level === "brands") { goTop(); }
   };
-  const level = topType === null ? "top" : selBrand === null ? "brands" : (topType === "shoes" && selSubtype === null) ? "subtypes" : "products";
-  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack };
+  // For clothes, skip subtypes level and go directly to products after selecting a brand
+  const level = topType === null ? "top" : selBrand === null ? "brands" : shouldSkipSubtypes ? "products" : (selSubtype === null ? "subtypes" : "products");
+  return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack, shouldSkipSubtypes };
 }
 
 export default function POS() {

@@ -879,7 +879,7 @@ body {
 .qty-val           { font-size: 13px; font-weight: 600; color: var(--text); min-width: 18px; text-align: center; }
 .pos-cart-item-total { font-size: 13px; font-weight: 700; color: var(--text); flex-shrink: 0; min-width: 70px; text-align: right; }
 
-.pos-cart-footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; overflow-y: auto; max-height: 60vh; -webkit-overflow-scrolling: touch; }
+.pos-cart-footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
 .pos-subtotal    { display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; color: var(--text); }
 .pos-pay-methods { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
 .pos-pay-btn {
