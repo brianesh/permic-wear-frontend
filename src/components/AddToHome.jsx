@@ -106,20 +106,33 @@ export default function AddToHome() {
 
     if (supportsNativePrompt) {
       const handler = (e) => {
+        // Prevent the mini-infobar from appearing on mobile
         e.preventDefault();
+        // Save the event for later - we'll use it to show the install prompt
         deferredPrompt.current = e;
+        // Show our custom install banner
         setShow(true);
-        // Don't auto-trigger prompt - wait for user gesture
-        // The prompt will be triggered when user clicks "Install Now" button
+        console.log('[PWA] beforeinstallprompt captured, banner will show');
       };
       window.addEventListener("beforeinstallprompt", handler);
-      const t = setTimeout(() => setShow(true), 3000);
+      
+      // Fallback: if the event hasn't fired after 3 seconds, still show the banner
+      // but without native install support
+      const t = setTimeout(() => {
+        if (!deferredPrompt.current) {
+          console.log('[PWA] beforeinstallprompt not fired, showing manual install banner');
+          setShow(true);
+        }
+      }, 3000);
+      
       return () => {
         window.removeEventListener("beforeinstallprompt", handler);
         clearTimeout(t);
       };
     }
 
+    // For browsers that don't support beforeinstallprompt (iOS, Firefox, etc.)
+    // show the manual install instructions banner
     const t = setTimeout(() => setShow(true), 2000);
     return () => clearTimeout(t);
   }, []);
