@@ -51,7 +51,7 @@ function printReceipt(receipt, store = {}) {
     <tr><td colspan="2"><b>TOTAL</b></td><td style="text-align:right"><b>KES ${receipt.subtotal.toLocaleString()}</b></td></tr>
     <tr><td colspan="2">Payment</td><td style="text-align:right">${receipt.method}</td></tr>
     ${(receipt.method === "Cash" || receipt.method === "Split") ? `<tr><td colspan="2">Paid</td><td style="text-align:right">KES ${(receipt.amountPaid || 0).toLocaleString()}</td></tr><tr><td colspan="2"><b>Change</b></td><td style="text-align:right"><b>KES ${(receipt.change || 0).toLocaleString()}</b></td></tr>` : ""}
-    ${receipt.paymentRef ? `<tr><td colspan="2">M-Pesa Ref</td><td style="text-align:right;color:#1565c0">${receipt.paymentRef}</td></tr>` : ""}
+    ${receipt.paymentRef ? `<tr><td colspan="2">Tuma Ref</td><td style="text-align:right;color:#1565c0">${receipt.paymentRef}</td></tr>` : ""}
     ${receipt.customerPhone ? `<tr><td colspan="2">Phone</td><td style="text-align:right">${receipt.customerPhone}</td></tr>` : ""}
   </table>
   <div class="q"><img src="${qr}" width="80" height="80"/><br/><small>Scan to verify · ${receipt.txn}</small></div>
@@ -207,13 +207,13 @@ export default function POS() {
   // Error code to user-friendly message mapping
   const getErrorMessage = (code) => {
     const messages = {
-      1: "Insufficient balance in customer's M-Pesa account",
+      1: "Insufficient balance in customer's Tuma account",
       1032: "Customer cancelled the payment request",
       1037: "Phone unreachable - check if phone is on and has network",
       1038: "Phone switched off or out of coverage area",
       1039: "Network timeout - please try again",
       1040: "Invalid phone number or format",
-      1041: "Customer not opted in for M-Pesa services",
+      1041: "Customer not opted in for Tuma services",
     };
     return messages[code] || `Payment failed (code: ${code})`;
   };
@@ -346,7 +346,7 @@ export default function POS() {
       if (!finalRef) finalRef = `TUMA-${Date.now()}`;
     }
     pendingSaleRef.current = null;
-    setReceipt({ txn: finalRef, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method: "M-Pesa", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, paymentRef: finalRef, cashierCommission: saleCommRef.current || totalComm, isOffline: false, customerPhone: mpesaPhone });
+    setReceipt({ txn: finalRef, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method: "Tuma", amountPaid: subtotal, change: 0, date: new Date(), cashier: user?.name, paymentRef: finalRef, cashierCommission: saleCommRef.current || totalComm, isOffline: false, customerPhone: mpesaPhone });
     setCart([]); setAmountPaid(""); setMpesaPhone(""); setTumaStep(null); setCheckoutId(null); setPayRef("");
   };
 
@@ -361,7 +361,7 @@ export default function POS() {
       return; 
     }
     
-    // Handle M-Pesa (Tuma) and Split - show confirmation first
+    // Handle Tuma (Tuma) and Split - show confirmation first
     if (payMethod === "mpesa" || payMethod === "split") { 
       setTumaStep("preview"); 
       return; 
@@ -386,16 +386,16 @@ export default function POS() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
-          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800); }}>Proceed with Payment</button>
+          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "Tuma" : "Split"), 800); }}>Proceed with Payment</button>
         </div>
       </>}
-      {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
+      {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting Tuma payment</div></>}
       {tumaStep === "confirming" && <>
         <div className="mpesa-spinner" />
         <div className="mpesa-title">Awaiting Payment</div>
         <div className="mpesa-sub">STK push sent to <strong>{mpesaPhone}</strong> ({countdown}s)</div>
         <div className="mpesa-manual-ref-section">
-          <div className="mpesa-alt-note">Enter M-Pesa receipt code from customer's SMS:</div>
+          <div className="mpesa-alt-note">Enter Tuma receipt code from customer's SMS:</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8, width: "100%" }}>
             <input className="pos-cash-input" style={{ flex: 1, textTransform: "uppercase", letterSpacing: 1 }} placeholder="e.g. RBK7X4Y2PQ" value={payRef} onChange={e => setPayRef(e.target.value.toUpperCase())} />
             <button className="pos-checkout-btn" style={{ background: "var(--green)", color: "#000", padding: "0 16px", flexShrink: 0 }} disabled={!payRef.trim()} onClick={completeTuma}>✓ Confirm</button>
@@ -450,7 +450,7 @@ export default function POS() {
       </div>
       <div className="receipt-divider" />
       <div className="receipt-row"><span>Total</span><strong>{fmt(receipt.subtotal)}</strong></div>
-      <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method === "Cash" ? "cash" : receipt.method === "M-Pesa" ? "m-pesa" : "split"}`}>{receipt.method}</span></div>
+      <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method === "Cash" ? "cash" : receipt.method === "Tuma" ? "m-pesa" : "split"}`}>{receipt.method}</span></div>
       {(receipt.method === "Cash" || receipt.method === "Split") && <>
         <div className="receipt-row"><span>Amount Paid</span><span>{fmt(receipt.amountPaid)}</span></div>
         <div className="receipt-row"><span>Change</span><strong style={{ color: "var(--green)" }}>{fmt(receipt.change)}</strong></div>
@@ -699,7 +699,7 @@ export default function POS() {
                 {paidAmt > 0 && paidAmt < subtotal && (
                   <div className="pos-split-breakdown">
                     <div className="pos-split-row"><span>💵 Cash</span><strong>{fmt(paidAmt)}</strong></div>
-                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 M-Pesa STK</span><strong style={{ color: "var(--teal)" }}>{fmt(subtotal - paidAmt)}</strong></div>
+                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 Tuma STK</span><strong style={{ color: "var(--teal)" }}>{fmt(subtotal - paidAmt)}</strong></div>
                     <div className="pos-split-row pos-split-row--total"><span>Total</span><strong>{fmt(subtotal)}</strong></div>
                   </div>
                 )}
@@ -711,7 +711,7 @@ export default function POS() {
             <button className="pos-checkout-btn"
               disabled={!allPriced || (payMethod === "cash" && paidAmt < subtotal) || (payMethod === "split" && paidAmt <= 0) || ((payMethod === "mpesa" || (payMethod === "split" && (subtotal - paidAmt) > 0)) && !mpesaPhone.trim())}
               onClick={checkout}>
-              {!allPriced ? "Enter selling prices ↑" : payMethod === "split" && paidAmt > 0 && (subtotal - paidAmt) > 0 ? `Pay ${fmt(paidAmt)} Cash + ${fmt(subtotal - paidAmt)} M-Pesa` : `Complete Sale · ${fmt(subtotal)}`}
+              {!allPriced ? "Enter selling prices ↑" : payMethod === "split" && paidAmt > 0 && (subtotal - paidAmt) > 0 ? `Pay ${fmt(paidAmt)} Cash + ${fmt(subtotal - paidAmt)} Tuma` : `Complete Sale · ${fmt(subtotal)}`}
             </button>
           </div>
         </div>
