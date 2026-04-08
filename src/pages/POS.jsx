@@ -354,8 +354,18 @@ export default function POS() {
     if (!allPriced) return;
     if (payMethod === "cash" && paidAmt < subtotal) return;
     if (payMethod === "split" && paidAmt <= 0) return;
-    if (payMethod === "cash") { doCheckout("Cash"); return; }
-    setTumaStep("preview"); // Show confirmation before STK
+    
+    // Handle Cash immediately
+    if (payMethod === "cash") { 
+      doCheckout("Cash"); 
+      return; 
+    }
+    
+    // Handle M-Pesa (Tuma) and Split - show confirmation first
+    if (payMethod === "mpesa" || payMethod === "split") { 
+      setTumaStep("preview"); 
+      return; 
+    }
   };
 
   // Tuma overlay
