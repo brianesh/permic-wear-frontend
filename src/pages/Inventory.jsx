@@ -7,11 +7,11 @@ import BarcodePrinter from "../components/BarcodePrinter";
 // ── Size options ─────────────────────────────────────────────────
 const SIZES_SHOES         = ["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"];
 const SIZES_CLOTH_TOPS    = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL"];
-const SIZES_CLOTH_BOTTOMS = ["24","26","28","30","32","34","36","38","40","42","44","46","48","50","52"];
-const SIZES_CLOTH_FREE    = ["Free Size","XS","S","M","L","XL","2XL","3XL","4XL","5XL"];
+const SIZES_CLOTH_BOTTOMS = ["24","25","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50","51","52"];
+const SIZES_ACCESSORIES   = ["One Size"];
 
 const CLOTH_TYPE_TO_SIZES = {
-  // Tops - use XS to 6XL sizing
+  // Tops (shirts, jackets, hoodies, etc.) - XS to 6XL
   "Shirts": SIZES_CLOTH_TOPS,
   "T-Shirts": SIZES_CLOTH_TOPS,
   "Vests": SIZES_CLOTH_TOPS,
@@ -22,22 +22,22 @@ const CLOTH_TYPE_TO_SIZES = {
   "Polo": SIZES_CLOTH_TOPS,
   "Blazers": SIZES_CLOTH_TOPS,
   "Coats": SIZES_CLOTH_TOPS,
-  
-  // Bottoms - use waist sizes (26-50)
+
+  // Bottoms (jeans, trousers, shorts) - waist 24-52
   "Trousers": SIZES_CLOTH_BOTTOMS,
   "Jeans": SIZES_CLOTH_BOTTOMS,
   "Shorts": SIZES_CLOTH_BOTTOMS,
   "Cargo": SIZES_CLOTH_BOTTOMS,
   "Chinos": SIZES_CLOTH_BOTTOMS,
   "Sweatpants": SIZES_CLOTH_BOTTOMS,
-  
-  // Accessories - use free size or special sizing
-  "Belts": SIZES_CLOTH_FREE,
-  "Caps": SIZES_CLOTH_FREE,
-  "Hats": SIZES_CLOTH_FREE,
-  "Socks": ["One Size", "Free Size"],
-  "Ties": ["One Size", "Free Size"],
-  "Scarves": ["One Size", "Free Size"],
+
+  // Accessories (belts, caps, hats) - One Size only
+  "Belts": SIZES_ACCESSORIES,
+  "Caps": SIZES_ACCESSORIES,
+  "Hats": SIZES_ACCESSORIES,
+  "Socks": SIZES_ACCESSORIES,
+  "Ties": SIZES_ACCESSORIES,
+  "Scarves": SIZES_ACCESSORIES,
 };
 
 const CLOTH_ICONS = {
@@ -47,8 +47,16 @@ const CLOTH_ICONS = {
 
 const fmt      = n => `KES ${Number(n||0).toLocaleString()}`;
 const stockSt  = s => +s<=2?{l:"Critical",c:"stock-tag--critical"} : +s<=5?{l:"Low",c:"stock-tag--low"} : {l:"OK",c:"stock-tag--ok"};
-const getSizeOpts = (topType, brandName) =>
-  topType === "shoes" ? SIZES_SHOES : (CLOTH_TYPE_TO_SIZES[brandName] || SIZES_CLOTH_TOPS);
+// For shoes: return shoe sizes. For clothes: always return both tops + bottoms options.
+// CLOTH_TYPE_TO_SIZES is used for bulk modal; single form uses getSizeOpts which returns all cloth sizes.
+const getSizeOpts = (topType, brandName) => {
+  if (topType === "shoes") return SIZES_SHOES;
+  // Return exact sizes for the brand/type — accessories, tops, or bottoms
+  const mapped = CLOTH_TYPE_TO_SIZES[brandName];
+  if (mapped) return mapped;
+  // Default fallback to tops sizes
+  return SIZES_CLOTH_TOPS;
+};
 
 // ── Empty form factories ─────────────────────────────────────────
 const emptyForm = (topType = "shoes") => ({
@@ -176,8 +184,11 @@ export default function Inventory() {
 
   const addColor = () => { const c = prompt("Enter color name:"); if (c && !bulkForm.colors.includes(c)) setBulkForm(f => ({ ...f, colors: [...f.colors, c] })); };
   const removeColor = (c) => setBulkForm(f => ({ ...f, colors: f.colors.filter(x => x !== c) }));
-  const addSize = () => { const s = prompt("Enter size:"); if (s && !bulkForm.sizes.includes(s)) setBulkForm(f => ({ ...f, sizes: [...f.sizes, s] })); };
   const removeSize = (s) => setBulkForm(f => ({ ...f, sizes: f.sizes.filter(x => x !== s) }));
+  const addSizeFromPicker = (s) => { if (s && !bulkForm.sizes.includes(s)) setBulkForm(f => ({ ...f, sizes: [...f.sizes, s] })); };
+  // Get available sizes for bulk modal based on current category context
+  const bulkSizeOpts = getSizeOpts(cat.topType || "clothes", bulkForm.brand);
+  const bulkUnselectedSizes = bulkSizeOpts.filter(s => !bulkForm.sizes.includes(s));
 
   const handleBulkPhotoFile = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -400,7 +411,20 @@ export default function Inventory() {
               <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Product Name *</label><input type="text" placeholder={form.top_type==="shoes" ? "Nike Air Force 1 White" : "Slim Fit Black Shirt"} value={form.name} onChange={e => setForm({...form, name:e.target.value})}/></div>
               <div className="modal-field"><label>Brand / Type</label><input type="text" value={form.brand} readOnly style={{opacity:.7}}/></div>
               <div className="modal-field"><label>Category / Model</label><input type="text" value={form.category} onChange={e => setForm({...form, category:e.target.value})} placeholder="e.g. Air Force 1, Slim Fit"/></div>
-              <div className="modal-field"><label>Size *</label><select value={form.size} onChange={e => setForm({...form, size:e.target.value})}>{sizeOpts.map(s => <option key={s}>{s}</option>)}</select></div>
+              <div className="modal-field"><label>Size *</label><select value={form.size} onChange={e => setForm({...form, size:e.target.value})}>{form.top_type === "shoes"
+  ? sizeOpts.map(s => <option key={s} value={s}>EU {s}</option>)
+  : (sizeOpts[0] === "One Size"
+    ? <option value="One Size">One Size</option>
+    : <>
+        <optgroup label="Tops (XS – 6XL)">
+          {SIZES_CLOTH_TOPS.map(s => <option key={s} value={s}>{s}</option>)}
+        </optgroup>
+        <optgroup label="Bottoms – Waist (26 – 50)">
+          {SIZES_CLOTH_BOTTOMS.map(s => <option key={s} value={s}>Waist {s}&quot;</option>)}
+        </optgroup>
+      </>
+  )
+}</select></div>
               <div className="modal-field"><label>Color / Variant</label><input type="text" placeholder="White, Black, Blue…" value={form.color} onChange={e => setForm({...form, color:e.target.value})}/></div>
               <div className="modal-field"><label>Stock Quantity *</label><input type="number" min="0" placeholder="0" value={form.stock} onChange={e => setForm({...form, stock:e.target.value})}/></div>
               <div className="modal-field"><label>Min Price (KES) *</label><input type="number" min="0" placeholder="4800" value={form.min_price} onChange={e => setForm({...form, min_price:e.target.value})}/></div>
@@ -434,7 +458,20 @@ export default function Inventory() {
               <div className="modal-field"><label>Brand</label><input type="text" value={bulkForm.brand} readOnly style={{opacity:.7}}/></div>
               <div className="modal-field"><label>Model / Category</label><input type="text" value={bulkForm.category} onChange={e => setBulkForm({...bulkForm, category:e.target.value})} placeholder="e.g. Air Force 1"/></div>
               <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Colors *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.colors.map(c => (<span key={c} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--teal)",color:"#000",fontSize:12,fontWeight:600}}>{c}<button onClick={() => removeColor(c)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#000",fontSize:14}}>✕</button></span>))}<button className="modal-cancel" style={{fontSize:11,padding:"3px 8px"}} onClick={addColor}>+ Add Color</button></div></div>
-              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Sizes *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.sizes.map(s => (<span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--purple)",color:"#fff",fontSize:12,fontWeight:600}}>{s}<button onClick={() => removeSize(s)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#fff",fontSize:14}}>✕</button></span>))}<button className="modal-cancel" style={{fontSize:11,padding:"3px 8px"}} onClick={addSize}>+ Add Size</button></div></div>
+              <div className="modal-field" style={{gridColumn:"1/-1"}}><label>Sizes *</label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{bulkForm.sizes.map(s => (<span key={s} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,background:"var(--purple)",color:"#fff",fontSize:12,fontWeight:600}}>{s}<button onClick={() => removeSize(s)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#fff",fontSize:14}}>✕</button></span>))}</div><div style={{display:"flex",gap:6,marginTop:6,alignItems:"center"}}><select onChange={e => { if(e.target.value) { addSizeFromPicker(e.target.value); e.target.value=""; }}} style={{flex:1,padding:"6px 8px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text1)",fontSize:13}}><option value="">+ Pick size to add…</option>
+                        {cat.topType === "shoes"
+                          ? bulkUnselectedSizes.map(s => <option key={s} value={s}>EU {s}</option>)
+                          : bulkForm.brand && CLOTH_TYPE_TO_SIZES[bulkForm.brand]?.[0] === "One Size"
+                            ? <option value="One Size">One Size</option>
+                            : <>
+                                <optgroup label="Tops (XS – 6XL)">
+                                  {SIZES_CLOTH_TOPS.filter(s => !bulkForm.sizes.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
+                                </optgroup>
+                                <optgroup label="Bottoms – Waist (26 – 50)">
+                                  {SIZES_CLOTH_BOTTOMS.filter(s => !bulkForm.sizes.includes(s)).map(s => <option key={s} value={s}>Waist {s}&quot;</option>)}
+                                </optgroup>
+                              </>
+                        }</select><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: bulkSizeOpts}))}>All Sizes</button><button className="modal-cancel" style={{fontSize:11,padding:"6px 10px",whiteSpace:"nowrap"}} onClick={() => setBulkForm(f => ({...f, sizes: []}))}>Clear</button></div></div>
               <div className="modal-field"><label>Min Price (KES) *</label><input type="number" min="0" placeholder="4800" value={bulkForm.minPrice} onChange={e => setBulkForm({...bulkForm, minPrice:e.target.value})}/></div>
               <div className="modal-field"><label>Stock per Variant</label><input type="number" min="0" placeholder="10" value={bulkForm.stock} onChange={e => setBulkForm({...bulkForm, stock:e.target.value})}/></div>
               <div className="modal-field" style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="distributeStock" checked={bulkForm.distributeStock} onChange={e => setBulkForm({...bulkForm, distributeStock:e.target.checked})} style={{width:18,height:18}}/><label htmlFor="distributeStock" style={{cursor:"pointer",fontSize:13}}>Distribute stock across all variants (total stock)</label></div>
