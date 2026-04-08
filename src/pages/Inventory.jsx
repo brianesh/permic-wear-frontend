@@ -60,7 +60,15 @@ function useCategoryNav() {
     // For both shoes and clothes, load subtypes/sub-categories
     // For shoes: subtypes are models (Air Force 1, Campus, etc.)
     // For clothes: subtypes are sub-categories (Jeans, Khaki, Material under Trousers, etc.)
-    categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
+    categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => {
+      const data = r.data || [];
+      if (data.length > 0) {
+        setSubtypes(data);
+      } else {
+        // No sub-types for this clothes brand - go directly to products
+        setSubtypes([]);
+      }
+    }).catch(() => setSubtypes([])).finally(() => setLoading(false));
   };
   const selectSubtype = st => setSelSubtype(st);
   const goBack = () => {
@@ -69,7 +77,8 @@ function useCategoryNav() {
     else if (level === "subtypes") { setSelBrand(null); setSelSubtype(null); }
     else if (level === "brands") { goTop(); }
   };
-  const level = topType === null ? "top" : selBrand === null ? "brands" : (topType === "shoes" && selSubtype === null) ? "subtypes" : "products";
+  // For clothes, if no subtypes exist, go directly to products after selecting brand
+  const level = topType === null ? "top" : selBrand === null ? "brands" : (selSubtype === null && subtypes.length > 0) ? "subtypes" : "products";
   return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack };
 }
 
