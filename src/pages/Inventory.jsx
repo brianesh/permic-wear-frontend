@@ -231,10 +231,18 @@ export default function Inventory() {
     const brandId     = cat.selBrand?.id || null;
     const subTypeId   = cat.selSubtype?.id || null;
     const categoryName = cat.selSubtype?.name || "";
+    
     setBulkForm({
-      name: "", brand: brandName, brand_id: brandId,
-      sub_type_id: subTypeId, category: categoryName,
-      colors: [], sizes: [], minPrice: "", stockMap: {}, photo_url: "",
+      name: "", 
+      brand: brandName, 
+      brand_id: brandId,
+      sub_type_id: subTypeId, 
+      category: categoryName,
+      colors: [], 
+      sizes: [], 
+      minPrice: "", 
+      stockMap: {}, 
+      photo_url: "",
     });
     setBulkPreview([]); 
     setBulkError(""); 
@@ -290,7 +298,7 @@ export default function Inventory() {
     reader.readAsDataURL(file);
   };
 
-  // ── Fixed: Generate preview only for variants with stock > 0 ──
+  // ── Generate preview only for variants with stock > 0 ──
   const generateBulkPreview = () => {
     setBulkError("");
     
@@ -377,7 +385,7 @@ export default function Inventory() {
     setBulkError(`✅ ${preview.length} variants ready to create`);
   };
 
-  // ── Fixed: Save only variants with stock ──
+  // ── Save only variants with stock ──
   const saveBulkProducts = async () => {
     if (bulkPreview.length === 0) { 
       setBulkError("Generate preview first"); 
@@ -388,30 +396,52 @@ export default function Inventory() {
     setBulkError("");
     
     try {
-      for (const variant of bulkPreview) {
-        if (!variant.sku || !variant.name || !variant.min_price) {
-          throw new Error(`Invalid variant data for ${variant.color} - ${variant.size}`);
+      // Convert stockMap to the format expected by backend
+      const stockMapForBackend = {};
+      Object.keys(bulkForm.stockMap).forEach(key => {
+        const value = bulkForm.stockMap[key];
+        if (value && parseInt(value) > 0) {
+          stockMapForBackend[key] = parseInt(value);
         }
-      }
+      });
       
+      // Format data exactly as your backend expects
       const productData = {
-        variants: bulkPreview,
+        name: bulkForm.name,
+        brand: bulkForm.brand,
+        brand_id: bulkForm.brand_id ? parseInt(bulkForm.brand_id) : null,
+        subType: bulkForm.category,
+        sub_type_id: bulkForm.sub_type_id ? parseInt(bulkForm.sub_type_id) : null,
+        colors: bulkForm.colors,
+        sizes: bulkForm.sizes,
+        min_price: parseFloat(bulkForm.minPrice),
+        stock: 0,
+        stockMap: stockMapForBackend,
+        category: bulkForm.category || "",
         topType: cat.topType || "shoes",
-        store_id: user?.store_id || null,
+        distributeStock: false,
+        store_id: user?.store_id ? parseInt(user.store_id) : null,
       };
+      
+      console.log("Sending to backend:", JSON.stringify(productData, null, 2));
       
       const response = await productsAPI.bulkCreate(productData);
       
       if (response.data) {
         closeBulkModal();
         refreshProducts();
-        alert(`✅ Successfully created ${bulkPreview.length} products!`);
-      } else {
-        setBulkError("Failed to save products");
+        alert(`✅ Successfully created ${response.data.created || bulkPreview.length} products!`);
+        if (response.data.errors && response.data.errors.length > 0) {
+          console.warn("Warnings:", response.data.errors);
+        }
       }
     } catch (err) {
       console.error("Bulk save error:", err);
-      setBulkError(err.response?.data?.error || err.message || "Failed to save products");
+      let errorMessage = err.response?.data?.error || err.message || "Failed to save products";
+      if (err.response?.data?.details) {
+        errorMessage += ": " + err.response.data.details.join(", ");
+      }
+      setBulkError(`Validation failed: ${errorMessage}`);
     } finally {
       setBulkSaving(false);
     }
