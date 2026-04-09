@@ -10,25 +10,14 @@ const num = v => parseInt(v, 10) || 0;
 const CLOTH_ICONS = { "Shirts":"👔","T-Shirts":"👕","Vests":"🎽","Belts":"🔗","Trousers":"👖","Shorts":"🩳","Jeans":"👖","Hoodies":"🧥","Jackets":"🧥","Caps":"🧢","Tracksuits":"🩱" };
 const stockC = s => s > 10 ? "var(--teal)" : s > 0 ? "var(--gold)" : "#e74c3c";
 
-// Size ordering for clothes - ensures XL comes before 2XL, and numeric waist sizes (24-52) sort correctly
+// Size ordering — semantic sort for XS/S/M/L/XL/2XL and numeric waist/shoe sizes
 const CLOTH_SIZE_ORDER = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL"];
-// Numeric waist sizes for bottoms (24-52)
-const WAIST_SIZE_ORDER = Array.from({length: 29}, (_, i) => String(i + 24)); // ["24","25",...,"52"]
 const compareSizes = (a, b) => {
   const na = parseFloat(a.size), nb = parseFloat(b.size);
-  // Numeric sizes (shoes, waist) - ascending
-  if (!isNaN(na) && !isNaN(nb)) {
-    // If both are waist sizes (24-52), use waist order
-    if (na >= 24 && na <= 52 && nb >= 24 && nb <= 52) {
-      const ia = WAIST_SIZE_ORDER.indexOf(a.size), ib = WAIST_SIZE_ORDER.indexOf(b.size);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-    }
-    return na - nb; // Default numeric sort
-  }
-  // Cloth sizes (XS-6XL)
+  if (!isNaN(na) && !isNaN(nb)) return na - nb;
   const ia = CLOTH_SIZE_ORDER.indexOf(a.size), ib = CLOTH_SIZE_ORDER.indexOf(b.size);
   if (ia !== -1 && ib !== -1) return ia - ib;
-  return String(a.size).localeCompare(String(b.size)); // Fallback
+  return String(a.size).localeCompare(String(b.size));
 };
 
 function calcItem(item, rate) {
@@ -51,7 +40,7 @@ function printReceipt(receipt, store = {}) {
     <tr><td colspan="2"><b>TOTAL</b></td><td style="text-align:right"><b>KES ${receipt.subtotal.toLocaleString()}</b></td></tr>
     <tr><td colspan="2">Payment</td><td style="text-align:right">${receipt.method}</td></tr>
     ${(receipt.method === "Cash" || receipt.method === "Split") ? `<tr><td colspan="2">Paid</td><td style="text-align:right">KES ${(receipt.amountPaid || 0).toLocaleString()}</td></tr><tr><td colspan="2"><b>Change</b></td><td style="text-align:right"><b>KES ${(receipt.change || 0).toLocaleString()}</b></td></tr>` : ""}
-    ${receipt.paymentRef ? `<tr><td colspan="2">Tuma Ref</td><td style="text-align:right;color:#1565c0">${receipt.paymentRef}</td></tr>` : ""}
+    ${receipt.paymentRef ? `<tr><td colspan="2">M-Pesa Ref</td><td style="text-align:right;color:#1565c0">${receipt.paymentRef}</td></tr>` : ""}
     ${receipt.customerPhone ? `<tr><td colspan="2">Phone</td><td style="text-align:right">${receipt.customerPhone}</td></tr>` : ""}
   </table>
   <div class="q"><img src="${qr}" width="80" height="80"/><br/><small>Scan to verify · ${receipt.txn}</small></div>
@@ -207,13 +196,13 @@ export default function POS() {
   // Error code to user-friendly message mapping
   const getErrorMessage = (code) => {
     const messages = {
-      1: "Insufficient balance in customer's Tuma account",
+      1: "Insufficient balance in customer's M-Pesa account",
       1032: "Customer cancelled the payment request",
       1037: "Phone unreachable - check if phone is on and has network",
       1038: "Phone switched off or out of coverage area",
       1039: "Network timeout - please try again",
       1040: "Invalid phone number or format",
-      1041: "Customer not opted in for Tuma services",
+      1041: "Customer not opted in for M-Pesa services",
     };
     return messages[code] || `Payment failed (code: ${code})`;
   };
@@ -281,30 +270,48 @@ export default function POS() {
   const doCheckout = async method => {
     const items = cart.map(c => ({ product_id: c.id, qty: c.qty, selling_price: num(c.sellingPrice) }));
     setCheckoutErr("");
+
+    // For Tuma/M-Pesa, the full subtotal is the amount paid
+    const finalAmountPaid = (method === "Tuma") ? subtotal : paidAmt;
+
+    // Offline mode: queue sale locally
     if (!isOnline) {
       const lid = `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      await queueSale({ localId: lid, items, payment_method: method, amount_paid: paidAmt, cashier_id: user?.id, cashier_name: user?.name, commission: totalComm, createdAt: new Date().toISOString() });
+      await queueSale({ localId: lid, items, payment_method: method, amount_paid: finalAmountPaid, cashier_id: user?.id, cashier_name: user?.name, commission: totalComm, createdAt: new Date().toISOString() });
       for (const l of items) await updateCachedProductStock(l.product_id, l.qty);
       applyStockDed(items); if (refreshPendingCount) refreshPendingCount();
-      setReceipt({ txn: lid, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method, amountPaid: paidAmt, change: Math.max(0, paidAmt - subtotal), date: new Date(), cashier: user?.name, paymentRef: "", cashierCommission: totalComm, isOffline: true, customerPhone: "" });
+      setReceipt({ txn: lid, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal, method, amountPaid: finalAmountPaid, change: Math.max(0, paidAmt - subtotal), date: new Date(), cashier: user?.name, paymentRef: "", cashierCommission: totalComm, isOffline: true, customerPhone: "" });
       setCart([]); setAmountPaid(""); setMpesaPhone(""); return;
     }
+
+    // Online mode
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      const r = await salesAPI.create({ items, payment_method: method, amount_paid: paidAmt, phone: mpesaPhone || undefined, mpesa_portion: mp || undefined });
+      console.log("[POS] Creating sale:", { method, finalAmountPaid, mp, phone: mpesaPhone || "none" });
+      const r = await salesAPI.create({
+        items,
+        payment_method: method,
+        amount_paid: finalAmountPaid,
+        phone: mpesaPhone || undefined,
+        mpesa_phone: mpesaPhone || undefined,
+        mpesa_portion: mp || undefined,
+      });
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
-      pendingSaleRef.current = (method === "Tuma" || (method === "Split" && mp > 0)) && sale_id ? sale_id : null;
-      if (method === "Tuma" || (method === "Split" && mp > 0)) lastItemsRef.current = items;
+
+      // Tuma/Split with M-Pesa portion: initiate STK push
+      const needsSTK = (method === "Tuma" || (method === "Split" && mp > 0)) && mpesaPhone;
+      pendingSaleRef.current = needsSTK && sale_id ? sale_id : null;
+      if (needsSTK) lastItemsRef.current = items;
       else applyStockDed(items);
 
-      if ((method === "Tuma" || (method === "Split" && mp > 0)) && mpesaPhone) {
+      if (needsSTK) {
         try {
-          const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, method === "Split" ? mp : selling_total);
-          // Use the reference from backend (always available) for polling
+          const stkAmount = method === "Split" ? mp : selling_total;
+          const sr = await tumaAPI.stkPush(sale_id, mpesaPhone, stkAmount);
           const reference = sr.data?.reference || sr.data?.checkout_request_id;
           if (!reference) {
-            console.error('[Tuma] No reference in response:', sr.data);
+            console.error("[Tuma] No reference in response:", sr.data);
             setCheckoutErr("STK push response missing reference. Please check backend logs.");
             setTumaStep(null);
             return;
@@ -314,16 +321,36 @@ export default function POS() {
           startPoll(reference);
         } catch (e) {
           const msg = e.response?.data?.error || e.message || "STK push failed";
-          console.error('[Tuma STK Error]', msg, e.response?.data);
-          setCheckoutErr(msg.includes("STK_CANCEL_BLOCKED") ? "🚫 This number is blocked due to repeated cancellations. Contact support." : msg);
+          console.error("[Tuma STK Error]", msg, e.response?.data);
+          setCheckoutErr(msg.includes("STK_CANCEL_BLOCKED")
+            ? "🚫 This number is blocked due to repeated cancellations. Contact support."
+            : msg);
           setTumaStep(null);
         }
         return;
       }
+
+      // Cash / Split (cash only) / Tuma without phone
       for (const l of items) productsAPI.recordUsed(l.product_id);
-      setReceipt({ txn: txn_id, items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })), subtotal: selling_total, method, amountPaid: paidAmt, change: Math.max(0, change_given), date: new Date(), cashier: user?.name, paymentRef: "", cashierCommission: Number(commission) || totalComm, isOffline: false, customerPhone: mpesaPhone || "" });
+      setReceipt({
+        txn: txn_id,
+        items: cart.map(c => ({ ...c, sellingPrice: num(c.sellingPrice) })),
+        subtotal: selling_total,
+        method,
+        amountPaid: finalAmountPaid,
+        change: Math.max(0, change_given),
+        date: new Date(),
+        cashier: user?.name,
+        paymentRef: "",
+        cashierCommission: Number(commission) || totalComm,
+        isOffline: false,
+        customerPhone: mpesaPhone || "",
+      });
       setCart([]); setAmountPaid(""); setMpesaPhone("");
-    } catch (e) { setCheckoutErr(e.response?.data?.error || "Sale failed. Please try again."); }
+    } catch (e) {
+      console.error("[POS] Sale error:", e.response?.data || e.message);
+      setCheckoutErr(e.response?.data?.error || "Sale failed. Please try again.");
+    }
   };
 
   const completeTuma = async () => {
@@ -354,18 +381,8 @@ export default function POS() {
     if (!allPriced) return;
     if (payMethod === "cash" && paidAmt < subtotal) return;
     if (payMethod === "split" && paidAmt <= 0) return;
-    
-    // Handle Cash immediately
-    if (payMethod === "cash") { 
-      doCheckout("Cash"); 
-      return; 
-    }
-    
-    // Handle Tuma (Tuma) and Split - show confirmation first
-    if (payMethod === "mpesa" || payMethod === "split") { 
-      setTumaStep("preview"); 
-      return; 
-    }
+    if (payMethod === "cash") { doCheckout("Cash"); return; }
+    setTumaStep("preview"); // Show confirmation before STK
   };
 
   // Tuma overlay
@@ -386,16 +403,16 @@ export default function POS() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="pos-checkout-btn" style={{ flex: 1, background: "var(--bg3)", color: "var(--text1)", border: "1px solid var(--border)" }} onClick={() => setTumaStep(null)}>Cancel</button>
-          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "Tuma" : "Split"), 800); }}>Proceed with Payment</button>
+          <button className="pos-checkout-btn" style={{ flex: 1 }} onClick={() => { setTumaStep("sending"); setTimeout(() => doCheckout(payMethod === "mpesa" ? "M-Pesa" : "Split"), 800); }}>Proceed with Payment</button>
         </div>
       </>}
-      {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting Tuma payment</div></>}
+      {tumaStep === "sending" && <><div className="mpesa-spinner" /><div className="mpesa-title">Sending STK Push…</div><div className="mpesa-sub">Requesting M-Pesa payment</div></>}
       {tumaStep === "confirming" && <>
         <div className="mpesa-spinner" />
         <div className="mpesa-title">Awaiting Payment</div>
         <div className="mpesa-sub">STK push sent to <strong>{mpesaPhone}</strong> ({countdown}s)</div>
         <div className="mpesa-manual-ref-section">
-          <div className="mpesa-alt-note">Enter Tuma receipt code from customer's SMS:</div>
+          <div className="mpesa-alt-note">Enter M-Pesa receipt code from customer's SMS:</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8, width: "100%" }}>
             <input className="pos-cash-input" style={{ flex: 1, textTransform: "uppercase", letterSpacing: 1 }} placeholder="e.g. RBK7X4Y2PQ" value={payRef} onChange={e => setPayRef(e.target.value.toUpperCase())} />
             <button className="pos-checkout-btn" style={{ background: "var(--green)", color: "#000", padding: "0 16px", flexShrink: 0 }} disabled={!payRef.trim()} onClick={completeTuma}>✓ Confirm</button>
@@ -450,7 +467,7 @@ export default function POS() {
       </div>
       <div className="receipt-divider" />
       <div className="receipt-row"><span>Total</span><strong>{fmt(receipt.subtotal)}</strong></div>
-      <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method === "Cash" ? "cash" : receipt.method === "Tuma" ? "m-pesa" : "split"}`}>{receipt.method}</span></div>
+      <div className="receipt-row"><span>Method</span><span className={`method-tag method-tag--${receipt.method === "Cash" ? "cash" : receipt.method === "M-Pesa" ? "m-pesa" : "split"}`}>{receipt.method}</span></div>
       {(receipt.method === "Cash" || receipt.method === "Split") && <>
         <div className="receipt-row"><span>Amount Paid</span><span>{fmt(receipt.amountPaid)}</span></div>
         <div className="receipt-row"><span>Change</span><strong style={{ color: "var(--green)" }}>{fmt(receipt.change)}</strong></div>
@@ -486,7 +503,7 @@ export default function POS() {
             <div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", background: "var(--bg2)", border: "2px solid var(--border)", borderRadius: 10, padding: "8px 12px", marginBottom: 10 }}>
                 <span>🔍</span>
-                <input id="pos-search-input" name="search" ref={searchRef} value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Name, brand, color, size… (press /)" style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text1)", fontSize: 15 }} aria-label="Search products" />
+                <input ref={searchRef} value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Name, brand, color, size… (press /)" style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text1)", fontSize: 15 }} />
                 {searching && <span style={{ color: "var(--text3)", fontSize: 12 }}>…</span>}
                 {searchQ && <button onClick={() => setSearchQ("")} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 16 }}>✕</button>}
               </div>
@@ -597,6 +614,7 @@ export default function POS() {
                     if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No products found</div>;
                     return <div className="pos-grid">{entries.map(([key, vars]) => {
                       const rep = vars[0];
+                      const SIZE_ORDER = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL","One Size"];
                       const sorted = [...vars].sort(compareSizes);
                       const minP = Math.min(...vars.map(v => parseFloat(v.min_price)));
                       const totS = vars.reduce((s, v) => s + v.stock, 0);
@@ -699,7 +717,7 @@ export default function POS() {
                 {paidAmt > 0 && paidAmt < subtotal && (
                   <div className="pos-split-breakdown">
                     <div className="pos-split-row"><span>💵 Cash</span><strong>{fmt(paidAmt)}</strong></div>
-                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 Tuma STK</span><strong style={{ color: "var(--teal)" }}>{fmt(subtotal - paidAmt)}</strong></div>
+                    <div className="pos-split-row pos-split-row--mpesa"><span>📱 M-Pesa STK</span><strong style={{ color: "var(--teal)" }}>{fmt(subtotal - paidAmt)}</strong></div>
                     <div className="pos-split-row pos-split-row--total"><span>Total</span><strong>{fmt(subtotal)}</strong></div>
                   </div>
                 )}
@@ -711,7 +729,7 @@ export default function POS() {
             <button className="pos-checkout-btn"
               disabled={!allPriced || (payMethod === "cash" && paidAmt < subtotal) || (payMethod === "split" && paidAmt <= 0) || ((payMethod === "mpesa" || (payMethod === "split" && (subtotal - paidAmt) > 0)) && !mpesaPhone.trim())}
               onClick={checkout}>
-              {!allPriced ? "Enter selling prices ↑" : payMethod === "split" && paidAmt > 0 && (subtotal - paidAmt) > 0 ? `Pay ${fmt(paidAmt)} Cash + ${fmt(subtotal - paidAmt)} Tuma` : `Complete Sale · ${fmt(subtotal)}`}
+              {!allPriced ? "Enter selling prices ↑" : payMethod === "split" && paidAmt > 0 && (subtotal - paidAmt) > 0 ? `Pay ${fmt(paidAmt)} Cash + ${fmt(subtotal - paidAmt)} M-Pesa` : `Complete Sale · ${fmt(subtotal)}`}
             </button>
           </div>
         </div>

@@ -1156,8 +1156,13 @@ body {
   .stats-grid    { grid-template-columns: repeat(2,1fr); }
   .dashboard     { padding: 20px 16px; }
   .inv-page      { padding: 20px 16px; }
-  .pos-layout    { grid-template-columns: 1fr; }
-  .pos-cart      { border-left: none; border-top: 1px solid var(--border); }
+  /* Switch POS to stacked column — override the fixed-height base styles */
+  .pos-page      { height: auto; overflow: visible; display: block; min-height: 100dvh; }
+  .pos-layout    { grid-template-columns: 1fr; overflow: visible; height: auto; }
+  .pos-products  { overflow: visible; height: auto; max-height: none; }
+  .pos-products > div { overflow: visible; max-height: none; }
+  .pos-cart      { border-left: none; border-top: 1px solid var(--border); overflow: visible; height: auto; max-height: none; }
+  .pos-cart-items { overflow: visible; max-height: none; height: auto; }
   .settings-layout { grid-template-columns: 1fr; }
   .users-grid    { grid-template-columns: 1fr; }
   .modal-grid    { grid-template-columns: 1fr; }
@@ -1694,24 +1699,86 @@ body {
   .stats-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
   .dashboard-grid { grid-template-columns: 1fr !important; }
 
-  /* ── POS ── */
-  .pos-page { height: auto !important; overflow-x: hidden !important; overflow-y: auto !important; }
-  .pos-header { padding: 16px 16px 0 !important; }
-  .pos-layout { grid-template-columns: 1fr !important; height: auto !important; display: flex !important; flex-direction: column !important; }
-  .pos-products { padding: 0 16px !important; max-height: none !important; min-height: 60vh; overflow-y: auto !important; }
-  .pos-grid { grid-template-columns: repeat(2, 1fr) !important; max-height: none !important; }
-  .pos-product-photo { height: 80px; }
-  .pos-product-photo-placeholder { height: 55px; font-size: 28px; }
-  .pos-cart { border-left: none !important; border-top: 1px solid var(--border); max-height: none !important; min-height: auto; }
-  .pos-cart-items { max-height: none !important; min-height: 150px; }
-  .pos-cart-footer { max-height: none; overflow-y: visible; }
-  .pos-layout { gap: 0; }
-  
-  /* Better mobile POS layout - use flex column with proper scrolling */
-  .pos-page { display: flex !important; flex-direction: column !important; height: 100vh; }
-  .pos-header { flex-shrink: 0; }
-  .pos-products { flex: 1 1 0; min-height: 0; }
-  .pos-cart { flex-shrink: 0; }
+  /* ══════════════════════════════════════════════
+     POS MOBILE — fully scrollable, nothing clipped
+     ══════════════════════════════════════════════ */
+
+  /* 1. The page itself: natural height, scrolls as one column */
+  .pos-page {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+    display: block !important;        /* kill the flex that enforced 100vh */
+    padding-bottom: 32px;
+  }
+  .pos-header {
+    padding: 16px 16px 0 !important;
+  }
+
+  /* 2. Layout: single column, auto height, no overflow clipping */
+  .pos-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin-top: 12px !important;
+    min-height: 0 !important;
+  }
+
+  /* 3. Product browser panel — fully expands to show all content */
+  .pos-products {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 12px 12px !important;
+  }
+  /* Every inner tab div must not be a scroll prison */
+  .pos-products > div,
+  .pos-products > div > div {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* 4. Cart panel — comes below products, full height */
+  .pos-cart {
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-left: none !important;
+    border-top: 2px solid var(--border) !important;
+  }
+  .pos-cart-items {
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 60px;
+    overflow: visible !important;
+  }
+  .pos-cart-footer {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* 5. Product grid: 2 columns on phone */
+  .pos-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .pos-product-photo { height: 80px !important; }
+  .pos-product-photo-placeholder { height: 55px !important; font-size: 28px !important; }
+
+  /* 6. Size chips: comfortable tap targets */
+  .pos-size-chip {
+    min-width: 42px !important;
+    min-height: 42px !important;
+    padding: 4px 6px !important;
+  }
+
+  /* 7. Modals: full width */
+  .mpesa-modal  { width: 96vw !important; max-width: none !important; }
+  .receipt-card { width: 96vw !important; max-width: 400px !important; }
 
   /* ── General pages ── */
   .inv-page { padding: 16px !important; }
@@ -1768,9 +1835,30 @@ body {
   .commission-kpi-row { grid-template-columns: 1fr !important; }
   .rep-kpi-row { grid-template-columns: 1fr !important; }
   .dash-clock-time { font-size: 22px !important; }
-  .page-title { font-size: 28px !important; }
-  .modal-body { padding: 16px !important; }
-  .modal-header { padding: 14px 16px !important; }
+  .page-title { font-size: 24px !important; }
+  .modal-body { padding: 14px !important; }
+  .modal-header { padding: 12px 14px !important; }
+
+  /* POS small-phone extras */
+  .pos-header h1 { font-size: 20px !important; margin-bottom: 2px; }
+  .pos-header p  { font-size: 12px !important; }
+  .pos-products  { padding: 0 10px 10px !important; }
+  .pos-size-chip { min-width: 38px !important; min-height: 38px !important; font-size: 11px !important; }
+  .pos-product-card { padding: 8px !important; }
+  .pos-cart-item { padding: 8px 12px !important; }
+  .pos-cart-footer { padding: 10px 12px !important; }
+  .pos-checkout-btn { font-size: 13px !important; padding: 12px 10px !important; }
+  .pos-pay-btn { font-size: 12px !important; padding: 8px 4px !important; }
+  /* Inventory table: horizontal scroll + compact */
+  .inv-table-wrap, .table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .inv-table th, .inv-table td { white-space: nowrap; padding: 8px 10px !important; font-size: 12px !important; }
+  /* Modals: full-width on small screens */
+  .modal-card { width: 98vw !important; max-width: 98vw !important; margin: 8px !important; }
+  /* Bulk modal size picker: wrap chips */
+  .pos-size-chips { gap: 4px !important; }
+  .pos-size-chip { font-size: 11px !important; }
+  /* Category nav cards: 2 cols */
+  .inv-page { padding: 12px !important; }
 }
 
 /* ── Landscape phone (short viewport, wide) ── */
