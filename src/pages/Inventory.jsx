@@ -171,16 +171,13 @@ export default function Inventory() {
   const setVariantStock = (color, size, value) => {
     const key = getVariantKey(color, size);
     const numValue = parseInt(value);
-    
     setBulkForm(f => {
       const newMap = { ...f.stockMap };
-      
       if (!isNaN(numValue) && numValue > 0) {
         newMap[key] = numValue;
       } else {
         delete newMap[key];
       }
-      
       return { ...f, stockMap: newMap };
     });
   };
@@ -219,27 +216,16 @@ export default function Inventory() {
 
   // ── Bulk modal open ───────────────────────────────────────────
   const openBulkAdd = () => {
-    const brandName   = cat.selBrand?.name || "";
-    const brandId     = cat.selBrand?.id || null;
-    const subTypeId   = cat.selSubtype?.id || null;
+    const brandName    = cat.selBrand?.name || "";
+    const brandId      = cat.selBrand?.id || null;
+    const subTypeId    = cat.selSubtype?.id || null;
     const categoryName = cat.selSubtype?.name || "";
-    
     setBulkForm({
-      name: "", 
-      brand: brandName, 
-      brand_id: brandId,
-      sub_type_id: subTypeId, 
-      category: categoryName,
-      colors: [], 
-      sizes: [], 
-      minPrice: "", 
-      stockMap: {}, 
-      photo_url: "",
+      name: "", brand: brandName, brand_id: brandId,
+      sub_type_id: subTypeId, category: categoryName,
+      colors: [], sizes: [], minPrice: "", stockMap: {}, photo_url: "",
     });
-    setBulkPreview([]); 
-    setBulkError(""); 
-    setBulkPhotoPreview(""); 
-    setBulkModal(true);
+    setBulkPreview([]); setBulkError(""); setBulkPhotoPreview(""); setBulkModal(true);
   };
 
   const addColor = () => {
@@ -293,57 +279,47 @@ export default function Inventory() {
   // ── Generate preview only for variants with stock > 0 ──
   const generateBulkPreview = () => {
     setBulkError("");
-    
-    // Validate required fields
+
     if (!bulkForm.name || !bulkForm.name.trim()) {
-      setBulkError("Product name is required");
-      return;
+      setBulkError("Product name is required"); return;
     }
-    
     if (!bulkForm.brand) {
-      setBulkError("Brand is required");
-      return;
+      setBulkError("Brand is required"); return;
     }
-    
     if (!bulkForm.minPrice || parseFloat(bulkForm.minPrice) <= 0) {
-      setBulkError("Valid minimum price is required");
-      return;
+      setBulkError("Valid minimum price is required"); return;
     }
-    
     if (bulkForm.colors.length === 0) {
-      setBulkError("Add at least one color");
-      return;
+      setBulkError("Add at least one color"); return;
     }
-    
     if (bulkForm.sizes.length === 0) {
-      setBulkError("Add at least one size");
-      return;
+      setBulkError("Add at least one size"); return;
     }
 
     const preview = [];
     let hasStock = false;
     const skuMap = new Map();
-    
+
     bulkForm.colors.forEach(color => {
       bulkForm.sizes.forEach(size => {
         const qty = parseInt(bulkForm.stockMap[getVariantKey(color, size)]) || 0;
-        
+
         if (qty > 0) {
           hasStock = true;
-          
-          const sku = generateSKU({ 
-            brand: bulkForm.brand, 
-            subType: bulkForm.category, 
-            color, 
-            size 
+
+          const sku = generateSKU({
+            brand: bulkForm.brand,
+            subType: bulkForm.category,
+            color,
+            size
           });
-          
+
           if (skuMap.has(sku)) {
             setBulkError(`Duplicate SKU detected for ${color} - ${size}`);
             return;
           }
           skuMap.set(sku, true);
-          
+
           preview.push({
             name: bulkForm.name.trim(),
             color: color.trim(),
@@ -352,73 +328,46 @@ export default function Inventory() {
             min_price: parseFloat(bulkForm.minPrice),
             sku: sku,
             brand: bulkForm.brand,
-            brand_id: bulkForm.brand_id,
-            sub_type_id: bulkForm.sub_type_id,
+            brand_id: bulkForm.brand_id ? parseInt(bulkForm.brand_id) : null,
+            sub_type_id: bulkForm.sub_type_id ? parseInt(bulkForm.sub_type_id) : null,
             category: bulkForm.category || "",
             photo_url: bulkForm.photo_url || null,
             top_type: cat.topType || "shoes",
-            store_id: user?.store_id || null,
+            store_id: user?.store_id ? parseInt(user.store_id) : null,
           });
         }
       });
     });
-    
+
     if (!hasStock) {
       setBulkError("No stock entered for any variant! Please set stock values before generating preview.");
       return;
     }
-    
+
     if (preview.length === 0) {
       setBulkError("No valid variants to create");
       return;
     }
-    
+
     setBulkPreview(preview);
     setBulkError(`✅ ${preview.length} variants ready to create`);
   };
 
-  // ── Save only variants with stock ──
+  // ── FIX: Send bulkPreview array directly (each item has correct stock/sku/color/size) ──
   const saveBulkProducts = async () => {
-    if (bulkPreview.length === 0) { 
-      setBulkError("Generate preview first"); 
-      return; 
+    if (bulkPreview.length === 0) {
+      setBulkError("Generate preview first");
+      return;
     }
-    
-    setBulkSaving(true); 
+
+    setBulkSaving(true);
     setBulkError("");
-    
+
     try {
-      // Convert stockMap to the format expected by backend
-      const stockMapForBackend = {};
-      Object.keys(bulkForm.stockMap).forEach(key => {
-        const value = bulkForm.stockMap[key];
-        if (value && parseInt(value) > 0) {
-          stockMapForBackend[key] = parseInt(value);
-        }
-      });
-      
-      // Format data exactly as your backend expects - using minPrice (not min_price)
-      const productData = {
-        name: bulkForm.name,
-        brand: bulkForm.brand,
-        brand_id: bulkForm.brand_id ? parseInt(bulkForm.brand_id) : null,
-        subType: bulkForm.category,
-        sub_type_id: bulkForm.sub_type_id ? parseInt(bulkForm.sub_type_id) : null,
-        colors: bulkForm.colors,
-        sizes: bulkForm.sizes,
-        minPrice: parseFloat(bulkForm.minPrice),
-        stock: 0,
-        stockMap: stockMapForBackend,
-        category: bulkForm.category || "",
-        topType: cat.topType || "shoes",
-        distributeStock: false,
-        store_id: user?.store_id ? parseInt(user.store_id) : null,
-      };
-      
-      console.log("Sending to backend:", JSON.stringify(productData, null, 2));
-      
-      const response = await productsAPI.bulkCreate(productData);
-      
+      // Send the already-built preview array — each object is a ready product row
+      // with real stock values, not the matrix object that caused the 400 error
+      const response = await productsAPI.bulkCreate(bulkPreview);
+
       if (response.data) {
         closeBulkModal();
         refreshProducts();
@@ -429,9 +378,10 @@ export default function Inventory() {
       }
     } catch (err) {
       console.error("Bulk save error:", err);
-      let errorMessage = err.response?.data?.error || err.message || "Failed to save products";
-      if (err.response?.data?.details) {
-        errorMessage += ": " + err.response.data.details.join(", ");
+      const errData = err.response?.data;
+      let errorMessage = errData?.error || err.message || "Failed to save products";
+      if (errData?.details) {
+        errorMessage += ": " + (Array.isArray(errData.details) ? errData.details.join(", ") : errData.details);
       }
       setBulkError(`Validation failed: ${errorMessage}`);
     } finally {
