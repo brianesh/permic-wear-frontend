@@ -123,20 +123,12 @@ export default function Inventory() {
   const [delName, setDelName]     = useState("");
 
   // ── Category/Brand Management Modals ─────────────────────────
-  const [catModal, setCatModal]   = useState(false);
-  const [catForm, setCatForm]     = useState({ name: "", top_type: "", photo_url: "" });
-  const [catEditId, setCatEditId] = useState(null);
-  const [catSaving, setCatSaving] = useState(false);
-  const [catError, setCatError]   = useState("");
-
   const [brandModal, setBrandModal]   = useState(false);
   const [brandForm, setBrandForm]     = useState({ name: "", top_type: "", photo_url: "" });
   const [brandEditId, setBrandEditId] = useState(null);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandError, setBrandError]   = useState("");
 
-  const [delCatId, setDelCatId]     = useState(null);
-  const [delCatName, setDelCatName] = useState("");
   const [delBrandId, setDelBrandId] = useState(null);
   const [delBrandName, setDelBrandName] = useState("");
 
@@ -405,7 +397,7 @@ export default function Inventory() {
         }
       });
       
-      // Format data exactly as your backend expects
+      // Format data exactly as your backend expects - using minPrice (not min_price)
       const productData = {
         name: bulkForm.name,
         brand: bulkForm.brand,
@@ -414,7 +406,7 @@ export default function Inventory() {
         sub_type_id: bulkForm.sub_type_id ? parseInt(bulkForm.sub_type_id) : null,
         colors: bulkForm.colors,
         sizes: bulkForm.sizes,
-        min_price: parseFloat(bulkForm.minPrice),
+        minPrice: parseFloat(bulkForm.minPrice),
         stock: 0,
         stockMap: stockMapForBackend,
         category: bulkForm.category || "",
@@ -790,7 +782,7 @@ export default function Inventory() {
               {/* Min Price */}
               <div className="modal-field">
                 <label>Min Price (KES) *</label>
-                <input type="number" min="0" placeholder="4800" value={bulkForm.minPrice} onChange={e => setBulkForm({...bulkForm, minPrice:e.target.value})}/>
+                <input type="number" min="0" step="0.01" placeholder="4800" value={bulkForm.minPrice} onChange={e => setBulkForm({...bulkForm, minPrice:e.target.value})}/>
               </div>
 
               {/* Colors */}
