@@ -292,24 +292,16 @@ export default function Inventory() {
         topType: cat.topType || "shoes", 
         store_id: user?.store_id || null 
       };
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/products/bulk-create`, {
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${localStorage.getItem('token')}` 
-        },
-        body: JSON.stringify(productData)
-      });
-      const result = await response.json();
-      if (response.ok) { 
+      const response = await productsAPI.bulkCreate(productData);
+      if (response.data) { 
         setBulkModal(false); 
         setBulkPreview([]); 
         refreshProducts(); 
       } else {
-        setBulkError(result.error || "Failed to save");
+        setBulkError("Failed to save");
       }
     } catch (err) { 
-      setBulkError(err.message); 
+      setBulkError(err.response?.data?.error || err.message); 
     } finally { 
       setBulkSaving(false); 
     }

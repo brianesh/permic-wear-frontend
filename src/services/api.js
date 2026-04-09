@@ -160,6 +160,7 @@ export const productsAPI = {
   update:     (id, data) => api.put(`/products/${id}`, data),
   remove:     (id)       => api.delete(`/products/${id}`),
   bulkImport: (products) => api.post('/products/bulk-import', { products }, { timeout: 120000 }),
+  bulkCreate: (data) => api.post('/products/bulk-create', data, { timeout: 120000 }),
 };
 
 // ── Sales ─────────────────────────────────────────────────────────
