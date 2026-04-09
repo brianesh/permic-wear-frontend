@@ -178,13 +178,17 @@ export default function Inventory() {
 
   const setVariantStock = (color, size, value) => {
     const key = getVariantKey(color, size);
+    const numValue = parseInt(value);
+    
     setBulkForm(f => {
       const newMap = { ...f.stockMap };
-      if (value && parseInt(value) > 0) {
-        newMap[key] = value;
+      
+      if (!isNaN(numValue) && numValue > 0) {
+        newMap[key] = numValue;
       } else {
         delete newMap[key];
       }
+      
       return { ...f, stockMap: newMap };
     });
   };
@@ -207,6 +211,20 @@ export default function Inventory() {
     return Object.values(bulkForm.stockMap).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
   };
 
+  // ── Close and reset bulk modal ─────────────────────────────────
+  const closeBulkModal = () => {
+    setBulkModal(false);
+    setTimeout(() => {
+      setBulkPreview([]);
+      setBulkError("");
+      setBulkPhotoPreview("");
+      setBulkForm({
+        name: "", brand: "", brand_id: null, sub_type_id: null, category: "",
+        colors: [], sizes: [], minPrice: "", stockMap: {}, photo_url: "",
+      });
+    }, 300);
+  };
+
   // ── Bulk modal open ───────────────────────────────────────────
   const openBulkAdd = () => {
     const brandName   = cat.selBrand?.name || "";
@@ -218,7 +236,10 @@ export default function Inventory() {
       sub_type_id: subTypeId, category: categoryName,
       colors: [], sizes: [], minPrice: "", stockMap: {}, photo_url: "",
     });
-    setBulkPreview([]); setBulkError(""); setBulkPhotoPreview(""); setBulkModal(true);
+    setBulkPreview([]); 
+    setBulkError(""); 
+    setBulkPhotoPreview(""); 
+    setBulkModal(true);
   };
 
   const addColor = () => {
@@ -269,56 +290,128 @@ export default function Inventory() {
     reader.readAsDataURL(file);
   };
 
+  // ── Fixed: Generate preview only for variants with stock > 0 ──
   const generateBulkPreview = () => {
-    if (!bulkForm.name || !bulkForm.brand || !bulkForm.minPrice) {
-      setBulkError("Name, brand, and min price required"); return;
+    setBulkError("");
+    
+    // Validate required fields
+    if (!bulkForm.name || !bulkForm.name.trim()) {
+      setBulkError("Product name is required");
+      return;
     }
-    if (bulkForm.colors.length === 0) { setBulkError("Add at least one color"); return; }
-    if (bulkForm.sizes.length === 0)  { setBulkError("Add at least one size"); return; }
+    
+    if (!bulkForm.brand) {
+      setBulkError("Brand is required");
+      return;
+    }
+    
+    if (!bulkForm.minPrice || parseFloat(bulkForm.minPrice) <= 0) {
+      setBulkError("Valid minimum price is required");
+      return;
+    }
+    
+    if (bulkForm.colors.length === 0) {
+      setBulkError("Add at least one color");
+      return;
+    }
+    
+    if (bulkForm.sizes.length === 0) {
+      setBulkError("Add at least one size");
+      return;
+    }
 
     const preview = [];
+    let hasStock = false;
+    const skuMap = new Map();
+    
     bulkForm.colors.forEach(color => {
       bulkForm.sizes.forEach(size => {
         const qty = parseInt(bulkForm.stockMap[getVariantKey(color, size)]) || 0;
-        preview.push({
-          name: `${bulkForm.name}`,
-          color,
-          size,
-          stock: qty,
-          minPrice: bulkForm.minPrice,
-          min_price: bulkForm.minPrice,
-          sku: generateSKU({ brand: bulkForm.brand, subType: bulkForm.category, color, size }),
-          brand: bulkForm.brand,
-          brand_id: bulkForm.brand_id,
-          sub_type_id: bulkForm.sub_type_id,
-          category: bulkForm.category,
-          photo_url: bulkForm.photo_url,
-          top_type: cat.topType || "shoes",
-        });
+        
+        if (qty > 0) {
+          hasStock = true;
+          
+          const sku = generateSKU({ 
+            brand: bulkForm.brand, 
+            subType: bulkForm.category, 
+            color, 
+            size 
+          });
+          
+          if (skuMap.has(sku)) {
+            setBulkError(`Duplicate SKU detected for ${color} - ${size}`);
+            return;
+          }
+          skuMap.set(sku, true);
+          
+          preview.push({
+            name: bulkForm.name.trim(),
+            color: color.trim(),
+            size: size,
+            stock: qty,
+            min_price: parseFloat(bulkForm.minPrice),
+            sku: sku,
+            brand: bulkForm.brand,
+            brand_id: bulkForm.brand_id,
+            sub_type_id: bulkForm.sub_type_id,
+            category: bulkForm.category || "",
+            photo_url: bulkForm.photo_url || null,
+            top_type: cat.topType || "shoes",
+            store_id: user?.store_id || null,
+          });
+        }
       });
     });
+    
+    if (!hasStock) {
+      setBulkError("No stock entered for any variant! Please set stock values before generating preview.");
+      return;
+    }
+    
+    if (preview.length === 0) {
+      setBulkError("No valid variants to create");
+      return;
+    }
+    
     setBulkPreview(preview);
-    setBulkError("");
+    setBulkError(`✅ ${preview.length} variants ready to create`);
   };
 
+  // ── Fixed: Save only variants with stock ──
   const saveBulkProducts = async () => {
-    if (bulkPreview.length === 0) { setBulkError("Generate preview first"); return; }
-    setBulkSaving(true); setBulkError("");
+    if (bulkPreview.length === 0) { 
+      setBulkError("Generate preview first"); 
+      return; 
+    }
+    
+    setBulkSaving(true); 
+    setBulkError("");
+    
     try {
+      for (const variant of bulkPreview) {
+        if (!variant.sku || !variant.name || !variant.min_price) {
+          throw new Error(`Invalid variant data for ${variant.color} - ${variant.size}`);
+        }
+      }
+      
       const productData = {
-        ...bulkForm,
         variants: bulkPreview,
         topType: cat.topType || "shoes",
         store_id: user?.store_id || null,
       };
+      
       const response = await productsAPI.bulkCreate(productData);
+      
       if (response.data) {
-        setBulkModal(false); setBulkPreview([]); refreshProducts();
+        closeBulkModal();
+        refreshProducts();
+        alert(`✅ Successfully created ${bulkPreview.length} products!`);
       } else {
-        setBulkError("Failed to save");
+        setBulkError("Failed to save products");
       }
     } catch (err) {
-      setBulkError(err.response?.data?.error || err.message);
+      console.error("Bulk save error:", err);
+      setBulkError(err.response?.data?.error || err.message || "Failed to save products");
     } finally {
       setBulkSaving(false);
     }
@@ -623,11 +716,11 @@ export default function Inventory() {
 
       {/* ── Bulk Add Modal ── */}
       {bulkModal && (
-        <div className="modal-overlay" onClick={() => { setBulkModal(false); setBulkError(""); }}>
+        <div className="modal-overlay" onClick={closeBulkModal}>
           <div className="modal-card" style={{maxWidth:740}} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">📦 Bulk Add Products</h3>
-              <button className="modal-close" onClick={() => { setBulkModal(false); setBulkError(""); }}>✕</button>
+              <button className="modal-close" onClick={closeBulkModal}>✕</button>
             </div>
 
             {/* Photo */}
@@ -728,7 +821,7 @@ export default function Inventory() {
                             const newMap = { ...f.stockMap };
                             f.colors.forEach(c => f.sizes.forEach(s => {
                               const key = getVariantKey(c, s);
-                              if (!newMap[key]) newMap[key] = v;
+                              if (!newMap[key]) newMap[key] = parseInt(v);
                             }));
                             return { ...f, stockMap: newMap };
                           });
@@ -745,7 +838,7 @@ export default function Inventory() {
                           setBulkForm(f => {
                             const newMap = {};
                             f.colors.forEach(c => f.sizes.forEach(s => {
-                              newMap[getVariantKey(c, s)] = v;
+                              newMap[getVariantKey(c, s)] = parseInt(v);
                             }));
                             return { ...f, stockMap: newMap };
                           });
@@ -840,9 +933,13 @@ export default function Inventory() {
               )}
             </div>
 
-            {bulkError && <div className="lf-error" style={{marginTop:12}}><span>⚠</span> {bulkError}</div>}
+            {bulkError && (
+              <div className="lf-error" style={{marginTop:12}}>
+                <span>⚠</span> {bulkError}
+              </div>
+            )}
 
-            {/* Preview table */}
+            {/* Preview table - only shows variants with stock > 0 */}
             {bulkPreview.length > 0 && (
               <div style={{marginTop:16,maxHeight:200,overflow:"auto",border:"1px solid var(--border)",borderRadius:8}}>
                 <div style={{padding:"8px 12px",background:"var(--bg2)",borderBottom:"1px solid var(--border)",fontWeight:600,fontSize:13,position:"sticky",top:0}}>
@@ -865,7 +962,7 @@ export default function Inventory() {
                         <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{v.size}</td>
                         <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)",fontFamily:"monospace",fontSize:11}}>{v.sku}</td>
                         <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)",fontWeight:v.stock>0?700:400,color:v.stock>0?"var(--text1)":"var(--text3)"}}>{v.stock || "—"}</td>
-                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{fmt(v.minPrice)}</td>
+                        <td style={{padding:"4px 8px",borderBottom:"1px solid var(--border)"}}>{fmt(v.min_price)}</td>
                       </tr>
                     ))}
                     {bulkPreview.length > 20 && (
@@ -881,7 +978,7 @@ export default function Inventory() {
             )}
 
             <div className="modal-actions" style={{marginTop:16}}>
-              <button className="modal-cancel" onClick={() => { setBulkModal(false); setBulkError(""); setBulkPreview([]); }}>Cancel</button>
+              <button className="modal-cancel" onClick={closeBulkModal}>Cancel</button>
               <button className="modal-cancel" onClick={generateBulkPreview} disabled={bulkSaving}>🔮 Preview</button>
               <button className="modal-save" onClick={saveBulkProducts} disabled={bulkSaving || bulkPreview.length === 0}>
                 {bulkSaving ? "Creating…" : `Create ${bulkPreview.length || ""} Variants`}
