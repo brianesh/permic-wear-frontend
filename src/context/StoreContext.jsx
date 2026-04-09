@@ -4,8 +4,8 @@ import { settingsAPI } from "../services/api";
 const DEFAULTS = {
   store_name:      "Permic Wear Solutions",
   store_location:  "Ruiru, Kenya",
-  store_phone:     "+254 792 369700",
-  store_email:     "info@permicwear.co.ke",
+  store_phone:     "+254706505008",
+  store_email:     "permicwear@gmail.com",
   currency:        "KES",
   timezone:        "Africa/Nairobi",
   ncba_shortcode:  "880100",   // NCBA paybill/business number
