@@ -77,11 +77,9 @@ function useCategoryNav(pushHistory) {
       if (pushHistory) pushHistory(`category-subtypes-${b.id}`);
       categoriesAPI.getSubtypes({ brand_id: b.id }).then(r => setSubtypes(r.data || [])).catch(() => setSubtypes([])).finally(() => setLoading(false));
     } else {
-      // For clothes, brand IS the type - go straight to products
       setSubtypes([]);
     }
   };
-  // For clothes: check if we should go directly to products (no subtypes)
   const shouldSkipSubtypes = topType === "clothes" && selBrand !== null;
   const selectSubtype = st => {
     setSelSubtype(st);
@@ -93,7 +91,6 @@ function useCategoryNav(pushHistory) {
     else if (level === "subtypes") { setSelBrand(null); setSelSubtype(null); }
     else if (level === "brands") { goTop(); }
   };
-  // For clothes, skip subtypes level and go directly to products after selecting a brand
   const level = topType === null ? "top" : selBrand === null ? "brands" : shouldSkipSubtypes ? "products" : (selSubtype === null ? "subtypes" : "products");
   return { topType, brands, subtypes, selBrand, selSubtype, setSelSubtype: selectSubtype, level, loading, goTop, goBrands, goSubtypes, goBack, shouldSkipSubtypes };
 }
@@ -114,7 +111,7 @@ export default function POS() {
   const [tumaError, setTumaError] = useState("");
   const [payRef, setPayRef] = useState("");
   const [checkoutId, setCheckoutId] = useState(null);
-  const [countdown, setCountdown] = useState(90);
+  const [countdown, setCountdown] = useState(120); // 2 minutes countdown
   const [receipt, setReceipt] = useState(null);
   const [checkoutErr, setCheckoutErr] = useState("");
   const [activeTab, setActiveTab] = useState("search");
@@ -202,7 +199,6 @@ export default function POS() {
 
   const applyStockDed = items => setCatalog(p => p.map(pr => { const l = items.find(i => i.product_id === pr.id); return l ? { ...pr, stock: Math.max(0, (parseInt(pr.stock, 10) || 0) - l.qty) } : pr; }));
 
-  // Error code to user-friendly message mapping
   const getErrorMessage = (code) => {
     const messages = {
       1: "Insufficient balance in customer's M-Pesa account",
@@ -216,58 +212,96 @@ export default function POS() {
     return messages[code] || `Payment failed (code: ${code})`;
   };
 
-  const startPoll = cid => {
-    let att = 0;
-    const maxAttempts = 30; // 30 attempts * 4s = 120s max wait
-    const pollInterval = 4000; // Poll every 4 seconds (reduced from 2.5s)
+  // FIXED: Polling that waits for full 2 minutes (120 seconds)
+  const startPoll = (cid) => {
+    let attempts = 0;
+    const MAX_ATTEMPTS = 40; // 40 attempts * 3 seconds = 120 seconds (2 minutes)
+    const POLL_INTERVAL = 3000; // 3 seconds between polls
     
-    const tick = async () => {
-      att++;
+    console.log(`[Poll] Starting payment polling for: ${cid}`);
+    
+    const poll = async () => {
+      attempts++;
+      const elapsedSeconds = attempts * 3;
+      console.log(`[Poll] Attempt ${attempts}/${MAX_ATTEMPTS} (${elapsedSeconds}s elapsed)`);
+      
       try {
-        const r = await tumaAPI.getStatus(cid);
-        const { status, payment_ref, error_code, error_message } = r.data;
+        const response = await tumaAPI.getStatus(cid);
+        const { status, payment_ref, error_code, error_message } = response.data;
         
-        if (status === "success") { 
-          clearInterval(pollRef.current); 
-          setPayRef(payment_ref || ""); 
-          applyStockDed(lastItemsRef.current || []); 
-          setTumaStep("confirmed"); 
-          return; 
+        if (status === "success") {
+          console.log("[Poll] ✅ Payment successful!");
+          clearInterval(pollRef.current);
+          setPayRef(payment_ref || "");
+          applyStockDed(lastItemsRef.current || []);
+          setTumaStep("confirmed");
+          return;
         }
-        if (status === "failed") { 
-          clearInterval(pollRef.current); 
+        
+        if (status === "failed") {
+          console.log("[Poll] ❌ Payment failed:", error_code);
+          clearInterval(pollRef.current);
           setTumaError(getErrorMessage(error_code || 0));
-          setTumaStep("failed"); 
-          return; 
+          setTumaStep("failed");
+          return;
         }
-        if (status === "timeout") { 
-          clearInterval(pollRef.current); 
-          setTumaStep("timeout"); 
-          return; 
+        
+        if (status === "timeout") {
+          console.log("[Poll] ⏰ Payment timeout");
+          clearInterval(pollRef.current);
+          setTumaStep("timeout");
+          return;
         }
-        if (att >= maxAttempts) { 
-          clearInterval(pollRef.current); 
-          setTumaStep("timeout"); 
+        
+        // Still pending - continue polling
+        if (status === "pending" && attempts < MAX_ATTEMPTS) {
+          // Update countdown display
+          const remainingSeconds = 120 - elapsedSeconds;
+          setCountdown(remainingSeconds);
         }
-      } catch (err) { 
-        console.error('[Poll Error]', err.message);
-        if (att >= maxAttempts) { 
-          clearInterval(pollRef.current); 
-          setTumaStep("timeout"); 
+        
+      } catch (err) {
+        console.error('[Poll] Error:', err.message);
+        // Continue polling on errors - don't stop
+        if (attempts >= MAX_ATTEMPTS) {
+          console.log("[Poll] Max attempts reached, timing out");
+          clearInterval(pollRef.current);
+          setTumaStep("timeout");
         }
       }
     };
-    pollRef.current = setInterval(tick, pollInterval);
+    
+    // Clear any existing interval
+    if (pollRef.current) clearInterval(pollRef.current);
+    
+    // Start polling
+    pollRef.current = setInterval(poll, POLL_INTERVAL);
+    // Execute first poll immediately
+    setTimeout(poll, 500);
   };
 
   useEffect(() => {
     if (tumaStep === "confirming") {
-      setCountdown(90);
-      cdRef.current = setInterval(() => setCountdown(s => s <= 1 ? (clearInterval(cdRef.current), 0) : s - 1), 1000);
-    } else clearInterval(cdRef.current);
+      setCountdown(120);
+      cdRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(cdRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      clearInterval(cdRef.current);
+    }
     return () => clearInterval(cdRef.current);
   }, [tumaStep]);
-  useEffect(() => () => { clearInterval(pollRef.current); clearInterval(cdRef.current); }, []);
+  
+  useEffect(() => () => { 
+    clearInterval(pollRef.current); 
+    clearInterval(cdRef.current); 
+  }, []);
 
   const cartReady = cart.filter(c => num(c.sellingPrice) >= c.minPrice);
   const subtotal = cartReady.reduce((s, c) => s + num(c.sellingPrice) * c.qty, 0);
@@ -280,10 +314,8 @@ export default function POS() {
     const items = cart.map(c => ({ product_id: c.id, qty: c.qty, selling_price: num(c.sellingPrice) }));
     setCheckoutErr("");
 
-    // For Tuma/M-Pesa, the full subtotal is the amount paid
     const finalAmountPaid = (method === "Tuma" || method === "M-Pesa") ? subtotal : paidAmt;
 
-    // Offline mode: queue sale locally
     if (!isOnline) {
       const lid = `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       await queueSale({ localId: lid, items, payment_method: method, amount_paid: finalAmountPaid, cashier_id: user?.id, cashier_name: user?.name, commission: totalComm, createdAt: new Date().toISOString() });
@@ -293,7 +325,6 @@ export default function POS() {
       setCart([]); setAmountPaid(""); setMpesaPhone(""); return;
     }
 
-    // Online mode
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
       console.log("[POS] Creating sale:", { method, finalAmountPaid, mp, phone: mpesaPhone || "none" });
@@ -308,7 +339,6 @@ export default function POS() {
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
 
-      // Tuma/Split with M-Pesa portion: initiate STK push
       const needsSTK = (method === "Tuma" || method === "M-Pesa" || (method === "Split" && mp > 0)) && mpesaPhone;
       pendingSaleRef.current = needsSTK && sale_id ? sale_id : null;
       if (needsSTK) lastItemsRef.current = items;
@@ -339,7 +369,6 @@ export default function POS() {
         return;
       }
 
-      // Cash / Split (cash only) / Tuma without phone
       for (const l of items) productsAPI.recordUsed(l.product_id);
       setReceipt({
         txn: txn_id,
@@ -378,7 +407,6 @@ export default function POS() {
     } catch (e) {
       const m = e.response?.data?.error || "";
       if (!m.includes("completed")) console.warn("[tuma]", m);
-      // Generate a reference if we don't have one
       if (!finalRef) finalRef = `TUMA-${Date.now()}`;
     }
     pendingSaleRef.current = null;
@@ -391,7 +419,7 @@ export default function POS() {
     if (payMethod === "cash" && paidAmt < subtotal) return;
     if (payMethod === "split" && paidAmt <= 0) return;
     if (payMethod === "cash") { doCheckout("Cash"); return; }
-    setTumaStep("preview"); // Show confirmation before STK
+    setTumaStep("preview");
   };
 
   // Tuma overlay
@@ -419,7 +447,11 @@ export default function POS() {
       {tumaStep === "confirming" && <>
         <div className="mpesa-spinner" />
         <div className="mpesa-title">Awaiting Payment</div>
-        <div className="mpesa-sub">STK push sent to <strong>{mpesaPhone}</strong> ({countdown}s)</div>
+        <div className="mpesa-sub">STK push sent to <strong>{mpesaPhone}</strong></div>
+        <div className="mpesa-timer" style={{ fontSize: 28, fontWeight: 700, color: "var(--gold)", margin: "8px 0" }}>
+          {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+        </div>
+        <div className="mpesa-sub" style={{ fontSize: 12 }}>Waiting for customer to enter PIN...</div>
         <div className="mpesa-manual-ref-section">
           <div className="mpesa-alt-note">Enter M-Pesa receipt code from customer's SMS:</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8, width: "100%" }}>
@@ -491,7 +523,7 @@ export default function POS() {
     </div></div></div>
   );
 
-  // Main layout
+  // Main layout (rest of your component remains the same)
   return (
     <div className="pos-page">
       <div className="pos-header">
@@ -500,7 +532,7 @@ export default function POS() {
       </div>
 
       <div className="pos-layout">
-        {/* Product Browser */}
+        {/* Product Browser - unchanged */}
         <div className="pos-products">
           <div style={{ display: "flex", gap: 4, marginBottom: 12, background: "var(--bg3)", borderRadius: 10, padding: 4 }}>
             {[["search", "🔍 Search"], ["sku", "📷 SKU/Scan"], ["category", "📂 Browse"]].map(([id, lbl]) => (
@@ -623,7 +655,6 @@ export default function POS() {
                     if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>No products found</div>;
                     return <div className="pos-grid">{entries.map(([key, vars]) => {
                       const rep = vars[0];
-                      const SIZE_ORDER = ["XS","S","M","L","XL","2XL","3XL","4XL","5XL","6XL","One Size"];
                       const sorted = [...vars].sort(compareSizes);
                       const minP = Math.min(...vars.map(v => parseFloat(v.min_price)));
                       const totS = vars.reduce((s, v) => s + v.stock, 0);
