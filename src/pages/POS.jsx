@@ -34,7 +34,7 @@ function printReceipt(receipt, store = {}) {
   const rows = receipt.items.map(c => `<tr><td><b>${c.name}</b><br/><small>SKU:${c.sku} Sz:${c.size}</small></td><td style="text-align:center">${c.qty}</td><td style="text-align:right">KES ${((c.sellingPrice || num(c.sellingPrice)) * c.qty).toLocaleString()}</td></tr>`).join("");
   const w = window.open("", "_blank", "width=380,height=650");
   w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;font-size:12px;width:300px;margin:0 auto;padding:16px}h2{text-align:center;font-size:15px;margin:0 0 2px}.c{text-align:center;color:#555;font-size:10px;margin-bottom:10px}table{width:100%;border-collapse:collapse}td{padding:3px 2px;vertical-align:top}hr{border:none;border-top:1px dashed #bbb;margin:7px 0}.f{text-align:center;font-size:10px;color:#888;margin-top:12px}.q{text-align:center;margin:10px 0}</style></head><body>
-  <h2>🏪 ${nm}</h2><div class="c">${lc} · ${ph}<br/>${receipt.date.toLocaleString("en-KE")}<br/><b>${receipt.txn}</b> · ${receipt.cashier}</div>
+  <h2><img src="/icon-192.png" style="width:48px;height:48px;object-fit:contain;vertical-align:middle;margin-right:6px;" />${nm}</h2><div class="c">${lc} · ${ph}<br/>${receipt.date.toLocaleString("en-KE")}<br/><b>${receipt.txn}</b> · ${receipt.cashier}</div>
   <hr/><table><tr><th style="text-align:left">Item</th><th>Qty</th><th style="text-align:right">Amt</th></tr>${rows}</table><hr/>
   <table>
     <tr><td colspan="2"><b>TOTAL</b></td><td style="text-align:right"><b>KES ${receipt.subtotal.toLocaleString()}</b></td></tr>
@@ -44,7 +44,16 @@ function printReceipt(receipt, store = {}) {
     ${receipt.customerPhone ? `<tr><td colspan="2">Phone</td><td style="text-align:right">${receipt.customerPhone}</td></tr>` : ""}
   </table>
   <div class="q"><img src="${qr}" width="80" height="80"/><br/><small>Scan to verify · ${receipt.txn}</small></div>
-  <div class="f">Thank you for shopping at ${nm}!</div></body></html>`);
+  <div class="f">Thank you for shopping at ${nm}!</div>
+<div style="text-align:center;font-size:11px;margin-top:6px;line-height:1.6;">
+  <strong>LOCATION:</strong> GWA-KAIRU, RUIRU.<br/>
+  Besides DICII SUPERMARKET | OPPOSITE TAM-TAM PRESTIGE
+</div>
+<div style="text-align:center;font-size:10px;margin-top:8px;color:#555;">
+  Powered by <strong>GENIUS SOLUTIONS</strong>
+  Website : brianmunenengari.vercel.app
+</div>
+</body></html>`);
   w.document.close(); w.focus(); setTimeout(() => w.print(), 500);
 }
 
