@@ -22,6 +22,7 @@ import AppPageHeader from "./components/AppPageHeader";
 import SyncBanner from "./components/SyncBanner";
 import GlobalSearch from "./components/GlobalSearch";
 import BackButtonHandler from "./components/BackButtonHandler";
+import { storesAPI } from "./services/api";
 import api from "./services/api";
 import "./index.css";
 
@@ -31,10 +32,129 @@ export const PERMISSIONS = {
   cashier:     ["pos","commission"],
 };
 
+// ── Super Admin Store Picker ────────────────────────────────────
+// Shown once after login so super_admin chooses which store they're
+// operating in. Choice is stored in localStorage and sent as
+// X-Active-Store-Id header on every API request.
+function StorePicker({ onPicked }) {
+  const { user } = useAuth();
+  const [stores, setStores]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [picked, setPicked]   = useState("");
+
+  useEffect(() => {
+    storesAPI.getAll()
+      .then(r => setStores((r.data || []).filter(s => s.is_active)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const confirm = () => {
+    if (!picked) return;
+    const store = stores.find(s => s.id === parseInt(picked));
+    localStorage.setItem("active_store_id", picked);
+    localStorage.setItem("active_store_name", store?.name || "");
+    onPicked(store);
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "var(--bg1)", flexDirection: "column", gap: 0,
+    }}>
+      <div style={{
+        background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 16,
+        padding: "40px 36px", width: "100%", maxWidth: 420, boxShadow: "0 8px 40px #0006",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🏪</div>
+          <h2 style={{ margin: 0, color: "var(--text1)", fontWeight: 800, fontSize: 22 }}>Choose Active Store</h2>
+          <p style={{ margin: "8px 0 0", color: "var(--text3)", fontSize: 14 }}>
+            Welcome, {user?.name}. Select the store you're operating in today.
+          </p>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", color: "var(--text3)", padding: 20 }}>Loading stores…</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+            {stores.map(s => (
+              <button key={s.id} onClick={() => setPicked(String(s.id))} style={{
+                padding: "14px 18px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                border: picked === String(s.id) ? "2px solid var(--gold)" : "1px solid var(--border)",
+                background: picked === String(s.id) ? "var(--gold)18" : "var(--bg3)",
+                color: "var(--text1)", transition: "all .15s",
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</div>
+                {s.location && <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>📍 {s.location}</div>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={confirm}
+          disabled={!picked}
+          style={{
+            width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: picked ? "pointer" : "not-allowed",
+            background: picked ? "var(--gold)" : "var(--bg3)", color: picked ? "#000" : "var(--text3)",
+            fontWeight: 700, fontSize: 15, transition: "all .15s",
+          }}
+        >
+          Enter Store →
+        </button>
+
+        <button onClick={() => onPicked(null)} style={{
+          width: "100%", marginTop: 10, padding: "10px", borderRadius: 10, border: "none",
+          background: "transparent", color: "var(--text3)", cursor: "pointer", fontSize: 13,
+        }}>
+          Skip — manage all stores globally
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── App Shell ───────────────────────────────────────────────────
 function AppShell() {
   const { user, logout, isOnline, setIsOnline, pendingSync } = useAuth();
+  const isSuperAdmin = user.role === "super_admin";
   const allowed   = PERMISSIONS[user.role] || [];
   const startPage = user.role === "cashier" ? "pos" : "dashboard";
+
+  // Super admin active store state
+  const [activeStore, setActiveStore] = useState(() => {
+    if (!isSuperAdmin) return null;
+    const id   = localStorage.getItem("active_store_id");
+    const name = localStorage.getItem("active_store_name");
+    return id ? { id: parseInt(id), name } : null;
+  });
+  // Show picker if super_admin hasn't chosen yet this session
+  const [showPicker, setShowPicker] = useState(
+    isSuperAdmin && !localStorage.getItem("active_store_id")
+  );
+
+  const handleStorePicked = (store) => {
+    if (store) {
+      setActiveStore(store);
+      localStorage.setItem("active_store_id", String(store.id));
+      localStorage.setItem("active_store_name", store.name);
+    } else {
+      // Skipped — operate globally (no store filter)
+      localStorage.removeItem("active_store_id");
+      localStorage.removeItem("active_store_name");
+      setActiveStore(null);
+    }
+    setShowPicker(false);
+  };
+
+  const switchStore = () => {
+    localStorage.removeItem("active_store_id");
+    localStorage.removeItem("active_store_name");
+    setActiveStore(null);
+    setShowPicker(true);
+  };
+
   const [page, setPageRaw]           = useState(startPage);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -43,7 +163,7 @@ function AppShell() {
   useEffect(() => { startKeepalive(); return () => stopKeepalive(); }, []);
 
   const setPage = useCallback(p => { if (allowed.includes(p)) setPageRaw(p); }, [allowed]);
-  const { pushHistory, showExitWarning } = useBackHistory(activePage, setPage, startPage);
+  const { pushHistory } = useBackHistory(activePage, setPage, startPage);
   const navigate = useCallback(p => {
     if (!allowed.includes(p)) return;
     setPageRaw(p); pushHistory(p);
@@ -64,16 +184,23 @@ function AppShell() {
     return () => window.removeEventListener("keydown", fn);
   }, []);
 
+  if (showPicker) return <StorePicker onPicked={handleStorePicked} />;
+
   return (
     <div className={"app-shell" + (sidebarCollapsed ? " sidebar-is-collapsed" : "")}>
-      <Sidebar activePage={activePage} setActivePage={navigate} user={user} logout={logout} allowed={allowed} onCollapsedChange={setSidebarCollapsed} onSearchClick={() => setGlobalSearchOpen(true)} />
+      <Sidebar
+        activePage={activePage} setActivePage={navigate}
+        user={user} logout={logout} allowed={allowed}
+        onCollapsedChange={setSidebarCollapsed}
+        onSearchClick={() => setGlobalSearchOpen(true)}
+        activeStore={activeStore}
+        onSwitchStore={isSuperAdmin ? switchStore : null}
+      />
       <main className="main-content">
         <SyncBanner isOnline={isOnline} pendingSync={pendingSync} />
         <AppPageHeader onSearchClick={() => setGlobalSearchOpen(true)} />
         {globalSearchOpen && <GlobalSearch onClose={() => setGlobalSearchOpen(false)} onNavigate={navigate} />}
-        {/* Exit warning overlay */}
-        {/* Back button handler with double-click to exit */}
-        <BackButtonHandler currentPage={activePage} onNavigateBack={() => navigate(activePage === 'pos' ? 'dashboard' : 'dashboard')} />
+        <BackButtonHandler currentPage={activePage} onNavigateBack={() => navigate("dashboard")} />
         {activePage === "dashboard"  && <Dashboard />}
         {activePage === "pos"        && <POS />}
         {activePage === "inventory"  && <Inventory />}
@@ -94,6 +221,7 @@ function AuthGate() {
   const { user } = useAuth();
   const [needsSetup, setNeedsSetup] = useState(null);
   const [wakingUp, setWakingUp]     = useState(false);
+
   useEffect(() => {
     if (user) { setNeedsSetup(false); return; }
     let att = 0;
@@ -105,12 +233,21 @@ function AuthGate() {
     };
     check();
   }, [user]);
-  const onSetup = (u, t) => { localStorage.setItem("se_token",t); localStorage.setItem("se_user",JSON.stringify(u)); window.location.reload(); };
+
+  const onSetup = (u, t) => {
+    localStorage.setItem("se_token", t);
+    localStorage.setItem("se_user", JSON.stringify(u));
+    window.location.reload();
+  };
+
   if (needsSetup === null) return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg1)",gap:12}}>
-      <div style={{color:"var(--text3)",fontSize:14}}>{wakingUp?"⏳ Waking up server… ~30 seconds on first load":"Starting Permic Men's Wear…"}</div>
+      <div style={{color:"var(--text3)",fontSize:14}}>
+        {wakingUp ? "⏳ Waking up server… ~30 seconds on first load" : "Starting Permic Men's Wear…"}
+      </div>
     </div>
   );
+
   return (
     <StoreProvider isLoggedIn={!!user}>
       {needsSetup ? <Setup onComplete={onSetup} /> : user ? <AppShell /> : <Login />}

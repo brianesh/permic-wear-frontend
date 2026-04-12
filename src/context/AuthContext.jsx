@@ -172,6 +172,9 @@ export function AuthProvider({ children }) {
     try { await authAPI.logout(); } catch (_) {}
     localStorage.removeItem("token");
     localStorage.removeItem("se_user");
+    // Clear super admin active store on logout
+    localStorage.removeItem("active_store_id");
+    localStorage.removeItem("active_store_name");
     setUser(null);
     setLoginError("");
   };

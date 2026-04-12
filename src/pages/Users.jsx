@@ -5,7 +5,10 @@ import { usersAPI, storesAPI } from "../services/api";
 const ROLE_COLOR = { super_admin:"#f5a623", admin:"#4ecdc4", cashier:"#a8e6cf" };
 const ROLE_LABEL = { super_admin:"Super Admin", admin:"Admin", cashier:"Cashier" };
 const AV_COLORS  = ["#f5a623","#4ecdc4","#a8e6cf","#f5a62399","#4ecdc499"];
-const EMPTY      = { name:"", email:"", role:"cashier", password:"", commission_rate:"10", store_id:"" };
+const EMPTY      = () => ({
+  name:"", email:"", role:"cashier", password:"", commission_rate:"10",
+  store_id: localStorage.getItem("active_store_id") || ""
+});
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -28,7 +31,7 @@ export default function Users() {
   };
   useEffect(()=>{ load(); },[]);
 
-  const openAdd  = ()  => { setForm(EMPTY);  setEditId(null); setModal(true); setError(""); };
+  const openAdd  = ()  => { setForm(EMPTY());  setEditId(null); setModal(true); setError(""); };
   const openEdit = u   => { setForm({ name:u.name, email:u.email, role:u.role, password:"", commission_rate:String(u.commission_rate||10), store_id: u.store_id || "" }); setEditId(u.id); setModal(true); setError(""); };
 
   const save = async () => {

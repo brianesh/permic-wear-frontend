@@ -30,6 +30,11 @@ api.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Super admin store picker: inject active store header so backend scopes correctly
+  const activeStoreId = localStorage.getItem('active_store_id');
+  if (activeStoreId) {
+    config.headers['X-Active-Store-Id'] = activeStoreId;
+  }
   return config;
 });
 
@@ -184,11 +189,14 @@ export const tumaAPI = {
 
 // ── Stores ────────────────────────────────────────────────────────
 export const storesAPI = {
-  getAll:   ()         => api.get('/stores'),
-  compare:  (params)   => api.get('/stores/compare', { params }),
-  create:   (data)     => api.post('/stores', data),
-  update:   (id, data) => api.put(`/stores/${id}`, data),
-  remove:   (id)       => api.delete(`/stores/${id}`),
+  getAll:    ()         => api.get('/stores'),
+  compare:   (params)   => api.get('/stores/compare', { params }),
+  create:    (data)     => api.post('/stores', data),
+  update:    (id, data) => api.put(`/stores/${id}`, data),
+  activate:  (id)       => api.put(`/stores/${id}/activate`),
+  remove:    (id)       => api.delete(`/stores/${id}`),
+  details:   (id)       => api.get(`/stores/${id}/details`),
+  priceListUrl: (id)    => `${api.defaults.baseURL}/stores/${id}/price-list`,
 };
 
 // ── Reports ───────────────────────────────────────────────────────

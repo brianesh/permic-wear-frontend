@@ -30,7 +30,7 @@ function useIsMobile() {
   return mobile;
 }
 
-export default function Sidebar({ activePage, setActivePage, user, logout, allowed, onCollapsedChange, onSearchClick }) {
+export default function Sidebar({ activePage, setActivePage, user, logout, allowed, onCollapsedChange, onSearchClick, activeStore, onSwitchStore }) {
   const { theme, toggleTheme } = useAuth();
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
@@ -100,15 +100,23 @@ export default function Sidebar({ activePage, setActivePage, user, logout, allow
             <div className="user-info">
               <span className="user-name">{user?.name}</span>
               <span className="user-role" style={{ color: rc }}>{ROLE_LABEL[user?.role]}</span>
-              {/* Super admin sees company name only; others see store + location */}
-              {user?.store_name && (
-                <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>
-                  {user?.role === 'super_admin'
-                    ? `🏢 ${user.store_name}`
-                    : `🏪 ${user.store_name}${user.store_location ? ` · ${user.store_location}` : ''}`
-                  }
+              {/* Store display: super_admin shows active store with switch button */}
+              {user?.role === 'super_admin' ? (
+                <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 1, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                  {activeStore ? `🏪 ${activeStore.name}` : "🏢 All Stores"}
+                  {onSwitchStore && (
+                    <button onClick={onSwitchStore} style={{
+                      fontSize: 9, padding: "1px 5px", borderRadius: 4,
+                      border: "1px solid var(--border)", background: "var(--bg3)",
+                      color: "var(--gold)", cursor: "pointer", fontWeight: 700,
+                    }}>switch</button>
+                  )}
                 </span>
-              )}
+              ) : user?.store_name ? (
+                <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 1 }}>
+                  {`🏪 ${user.store_name}${user.store_location ? ` · ${user.store_location}` : ''}`}
+                </span>
+              ) : null}
             </div>
           )}
           <div className="user-status" />

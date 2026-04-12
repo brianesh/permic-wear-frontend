@@ -333,7 +333,7 @@ export default function Inventory() {
             category: bulkForm.category || "",
             photo_url: bulkForm.photo_url || null,
             top_type: cat.topType || "shoes",
-            store_id: user?.store_id ? parseInt(user.store_id) : null,
+            store_id: parseInt(localStorage.getItem("active_store_id") || user?.store_id || 0) || null,
           });
         }
       });
