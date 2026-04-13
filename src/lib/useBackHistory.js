@@ -60,6 +60,8 @@ export function useBackHistory(activePage, setPage, startPage) {
       if (history[history.length - 1] === page) return;
       history.push(page);
       sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      // Push a real browser history entry so the phone back button fires popstate
+      window.history.pushState({ page, permic: true }, '', window.location.pathname);
       // Clear exit warning when navigating to a new page
       sessionStorage.removeItem(EXIT_WARNING_KEY);
       setShowExitWarning(false);
@@ -72,7 +74,11 @@ export function useBackHistory(activePage, setPage, startPage) {
 
   // Handle browser back button
   useEffect(() => {
-    const onPopState = () => {
+    const onPopState = (event) => {
+      // Only handle our own navigation states
+      if (!event.state?.permic && event.state !== null && event.state?.page === undefined) {
+        return; // Not our state — let browser handle it
+      }
       try {
         const saved = sessionStorage.getItem(HISTORY_KEY);
         const history = saved ? JSON.parse(saved) : [];
@@ -82,6 +88,8 @@ export function useBackHistory(activePage, setPage, startPage) {
           history.pop();
           const prevPage = history[history.length - 1] || startPage;
           sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+          // Push a replacement state so we can detect next back press
+          window.history.pushState({ page: prevPage, permic: true }, '', window.location.pathname);
           // Clear exit warning
           sessionStorage.removeItem(EXIT_WARNING_KEY);
           setShowExitWarning(false);
@@ -91,20 +99,18 @@ export function useBackHistory(activePage, setPage, startPage) {
           }
           setPage(prevPage);
         } else {
-          // At root page — check if user already saw warning
+          // At root page — double-press to exit
           const warningShown = sessionStorage.getItem(EXIT_WARNING_KEY);
-          
           if (warningShown) {
-            // Second back press — allow default behavior (exit app)
             sessionStorage.removeItem(EXIT_WARNING_KEY);
             setShowExitWarning(false);
-            // Let the default back behavior happen (exit app or go to previous site)
+            // Exit: navigate to a blank state so next back closes the app
+            window.history.go(-window.history.length);
           } else {
-            // First back press at root — show warning
             sessionStorage.setItem(EXIT_WARNING_KEY, 'true');
             setShowExitWarning(true);
-            
-            // Clear warning after timeout
+            // Push state again so we can catch the next back press
+            window.history.pushState({ page: startPage, permic: true, exit: true }, '', window.location.pathname);
             exitWarningTimeout.current = setTimeout(() => {
               sessionStorage.removeItem(EXIT_WARNING_KEY);
               setShowExitWarning(false);

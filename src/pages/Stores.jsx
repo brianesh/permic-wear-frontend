@@ -46,6 +46,7 @@ export default function Stores() {
   const [comparing, setComparing] = useState(false);
   const [from, setFrom]           = useState(daysAgo(30));
   const [to, setTo]               = useState(today());
+  const [assigning, setAssigning] = useState(false);
 
   // ── load stores list ─────────────────────────────────────────
   const load = useCallback(() => {
@@ -138,6 +139,24 @@ export default function Stores() {
   const activate = async s => {
     try { await storesAPI.activate(s.id); load(); }
     catch (e) { alert(e.response?.data?.error || "Failed"); }
+  };
+
+  // ── Assign orphan records (NULL store_id) to a store ───────────
+  const assignOrphans = async (storeId) => {
+    if (!window.confirm(
+      `Assign all products and sales with no store to this store?\n` +
+      `This fixes data from before multi-store was set up.\n\n` +
+      `Only do this once. This cannot be undone.`
+    )) return;
+    setAssigning(true);
+    try {
+      const r = await storesAPI.assignOrphans(storeId);
+      alert(`✅ Done! Assigned ${r.data.products} products and ${r.data.sales} sales to this store.`);
+      load();
+      if (tab === "compare") loadCompare();
+    } catch (e) {
+      alert(e.response?.data?.error || "Failed to assign records");
+    } finally { setAssigning(false); }
   };
 
   // ── CSV helper for stock lists ────────────────────────────────
@@ -291,6 +310,9 @@ export default function Stores() {
           setFrom={setFrom} setTo={setTo}
           onCompare={loadCompare}
           daysAgo={daysAgo} today={today}
+          stores={stores}
+          onAssignOrphans={assignOrphans}
+          assigning={assigning}
         />
       )}
     </div>
@@ -331,7 +353,7 @@ function StoreDetails({ store, details, tab, setTab, onDownloadStock, isSuperAdm
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid var(--border)" }}>
-                    {["Name", "Username", "Role", "Status"].map(h => (
+                    {["Name", "Email", "Role", "Status"].map(h => (
                       <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: "var(--text2)", fontWeight: 600 }}>{h}</th>
                     ))}
                   </tr>
@@ -340,7 +362,7 @@ function StoreDetails({ store, details, tab, setTab, onDownloadStock, isSuperAdm
                   {users.map(u => (
                     <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td style={{ padding: "8px 10px", color: "var(--text1)", fontWeight: 600 }}>{u.name}</td>
-                      <td style={{ padding: "8px 10px", color: "var(--text3)" }}>{u.username}</td>
+                      <td style={{ padding: "8px 10px", color: "var(--text3)" }}>{u.email}</td>
                       <td style={{ padding: "8px 10px" }}>
                         <span style={S.pill(ROLE_COLOR[u.role] || "var(--text2)")}>{u.role}</span>
                       </td>
@@ -429,7 +451,7 @@ function StockTable({ rows, empty, title, badgeColor, onDownload }) {
 // ════════════════════════════════════════════════════════════════
 // Compare Tab
 // ════════════════════════════════════════════════════════════════
-function CompareTab({ compare, comparing, from, to, setFrom, setTo, onCompare, daysAgo, today }) {
+function CompareTab({ compare, comparing, from, to, setFrom, setTo, onCompare, daysAgo, today, stores = [], onAssignOrphans, assigning }) {
   const fmt  = n => `KES ${Number(n || 0).toLocaleString()}`;
   const fmtN = n => Number(n || 0).toLocaleString();
 
@@ -460,8 +482,31 @@ function CompareTab({ compare, comparing, from, to, setFrom, setTo, onCompare, d
       </div>
 
       {comparing && <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>Loading comparison…</div>}
+      {compare && !comparing && compare.stores && compare.stores.length === 0 && (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
+          No stores found. Add stores first.
+        </div>
+      )}
 
-      {compare && !comparing && (
+      {/* Orphan data helper */}
+      {stores.length > 0 && (
+        <div style={{ marginBottom: 16, padding: "12px 16px", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 13 }}>
+          <div style={{ color: "var(--text2)", marginBottom: 8 }}>
+            <strong>📦 If compare shows zero values:</strong> Some products/sales may not have a store assigned (added before multi-store was set up).
+            Assign them to their store below.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {stores.filter(s => s.is_active).map(s => (
+              <button key={s.id} onClick={() => onAssignOrphans(s.id)} disabled={assigning}
+                style={{ padding: "6px 14px", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text1)", cursor: "pointer", fontSize: 12 }}>
+                {assigning ? "Assigning…" : `Assign unassigned → ${s.name}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {compare && !comparing && compare.stores && compare.stores.length > 0 && (
         <>
           {/* Revenue cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16, marginBottom: 20 }}>
@@ -531,7 +576,7 @@ function CompareTab({ compare, comparing, from, to, setFrom, setTo, onCompare, d
                     ["Cashiers",    s => fmtN(s.cashier_count),                false],
                     ["Admins",      s => fmtN(s.admin_count),                  false],
                   ].map(([label, fn, highlight]) => {
-                    const vals   = compare.stores.map(s => parseFloat(fn(s).replace(/[^0-9.]/g, "")) || 0);
+                    const vals   = compare.stores.map(s => parseFloat(String(fn(s)).replace(/[^0-9.]/g, "")) || 0);
                     const maxVal = Math.max(...vals);
                     return (
                       <tr key={label} style={{ borderBottom: "1px solid var(--border)" }}>

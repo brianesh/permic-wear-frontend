@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import { salesAPI, usersAPI } from "../services/api";
 
 const fmt = n => `KES ${Number(n||0).toLocaleString()}`;
@@ -6,6 +7,9 @@ const METHODS = ["All","Cash","M-Pesa","Split"];
 const STATUS_FILTERS = ["All","completed","pending_mpesa","pending_split","failed"];
 
 export default function SalesRecords() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
+  const isGlobalMode = isSuperAdmin && !localStorage.getItem("active_store_id");
   const [sales, setSales]         = useState([]);
   const [total, setTotal]         = useState(0);
   const [cashiers, setCashiers]   = useState([]);
@@ -28,7 +32,8 @@ export default function SalesRecords() {
 
   const load = () => {
     setLoading(true);
-    salesAPI.getAll({
+    const fetchFn = isGlobalMode ? salesAPI.getAllStores : salesAPI.getAll;
+    fetchFn({
       from: dateFrom || undefined, to: dateTo || undefined,
       method: method !== "All" ? method : undefined,
       status: status !== "All" ? status : undefined,
@@ -59,7 +64,7 @@ export default function SalesRecords() {
   return (
     <div className="inv-page">
       <div className="page-header">
-        <div><h1 className="page-title">Sales Records</h1><p className="page-sub">{total} total transactions</p></div>
+        <div><h1 className="page-title">Sales Records</h1><p className="page-sub">{total} total transactions{isGlobalMode ? " · All Stores" : ""}</p></div>
         <button className="primary-btn" onClick={exportCSV}>⬇ Export CSV</button>
       </div>
 
@@ -87,15 +92,16 @@ export default function SalesRecords() {
       <div className="panel-card" style={{padding:0}}>
         <div className="table-wrap">
           <table className="sales-table">
-            <thead><tr><th>TXN ID</th><th>Date & Time</th><th>Cashier</th><th>Items</th><th>Total</th><th>Profit</th><th>Commission</th><th>Method</th><th></th></tr></thead>
+            <thead><tr><th>TXN ID</th><th>Date & Time</th><th>Cashier</th>{isGlobalMode && <th>Store</th>}<th>Items</th><th>Total</th><th>Profit</th><th>Commission</th><th>Method</th><th></th></tr></thead>
             <tbody>
-              {loading && <tr><td colSpan={9} style={{textAlign:"center",padding:24,color:"var(--text3)"}}>Loading…</td></tr>}
+              {loading && <tr><td colSpan={isGlobalMode ? 10 : 9} style={{textAlign:"center",padding:24,color:"var(--text3)"}}>Loading…</td></tr>}
               {!loading && filtered.map(s=>(
                 <>
                   <tr key={s.id} style={{cursor:"pointer"}} onClick={()=>setExpanded(expanded===s.id?null:s.id)}>
                     <td className="txn-id">{s.txn_id}</td>
                     <td className="time">{new Date(s.sale_date).toLocaleString("en-KE")}</td>
                     <td>{s.cashier_name}</td>
+                    {isGlobalMode && <td style={{fontSize:11,color:"var(--text3)"}}>{s.store_name || "—"}</td>}
                     <td>{s.items?.length || 0} item(s)</td>
                     <td className="amount">{fmt(s.selling_total)}</td>
                     <td className="profit">+{fmt(s.extra_profit)}</td>

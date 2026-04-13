@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { reportsAPI } from "../services/api";
 import { getDashboardRange } from "../lib/dateRange";
 import { useStore } from "../context/StoreContext";
+import { useAuth } from "../context/AuthContext";
 import StatCard       from "../components/StatCard";
 import RevenueChart   from "../components/RevenueChart";
 import TopSellers     from "../components/TopSellers";
@@ -66,7 +67,14 @@ export default function Dashboard() {
       <div className="dashboard-header">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-sub">{store.store_name} · {store.store_location} · {store.store_phone}</p>
+          <p className="page-sub">
+            {(() => {
+              const activeId = localStorage.getItem("active_store_id");
+              const activeName = localStorage.getItem("active_store_name");
+              if (activeId && activeName) return `🏪 ${activeName}`;
+              return `${store.store_name}${store.store_location ? ` · ${store.store_location}` : ""}`;
+            })()}
+          </p>
         </div>
         <div className="dashboard-toolbar">
           <label className="period-select-label" htmlFor="dash-period">Period</label>

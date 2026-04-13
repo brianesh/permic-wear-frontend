@@ -172,6 +172,8 @@ export const productsAPI = {
 export const salesAPI = {
   create:             (data)   => api.post('/sales', data),
   getAll:             (params) => api.get('/sales', { params }),
+  // getAllStores: bypasses store filter — for super_admin sales records page (sees all stores)
+  getAllStores:        (params) => rawGet('/sales', { params }),
   getById:            (id)     => api.get(`/sales/${id}`),
 };
 
@@ -188,15 +190,24 @@ export const tumaAPI = {
 
 
 // ── Stores ────────────────────────────────────────────────────────
+// rawGet — bypasses X-Active-Store-Id so compare/global endpoints always see all stores
+function rawGet(url, config = {}) {
+  const headers = { ...config.headers };
+  delete headers['X-Active-Store-Id'];
+  return api.get(url, { ...config, headers });
+}
+
 export const storesAPI = {
   getAll:    ()         => api.get('/stores'),
-  compare:   (params)   => api.get('/stores/compare', { params }),
+  // compare must ALWAYS see all stores — never filter by active store
+  compare:   (params)   => rawGet('/stores/compare', { params }),
   create:    (data)     => api.post('/stores', data),
   update:    (id, data) => api.put(`/stores/${id}`, data),
   activate:  (id)       => api.put(`/stores/${id}/activate`),
   remove:    (id)       => api.delete(`/stores/${id}`),
   details:   (id)       => api.get(`/stores/${id}/details`),
-  priceListUrl: (id)    => `${api.defaults.baseURL}/stores/${id}/price-list`,
+  priceListUrl:    (id)      => `${api.defaults.baseURL}/stores/${id}/price-list`,
+  assignOrphans:   (store_id) => api.post('/stores/assign-orphans', { store_id }),
 };
 
 // ── Reports ───────────────────────────────────────────────────────

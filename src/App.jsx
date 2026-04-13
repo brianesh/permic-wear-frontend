@@ -21,7 +21,6 @@ import AddToHome from "./components/AddToHome";
 import AppPageHeader from "./components/AppPageHeader";
 import SyncBanner from "./components/SyncBanner";
 import GlobalSearch from "./components/GlobalSearch";
-import BackButtonHandler from "./components/BackButtonHandler";
 import { storesAPI } from "./services/api";
 import api from "./services/api";
 import "./index.css";
@@ -151,8 +150,8 @@ function AppShell() {
   const switchStore = () => {
     localStorage.removeItem("active_store_id");
     localStorage.removeItem("active_store_name");
-    setActiveStore(null);
-    setShowPicker(true);
+    // Reload the page so all store-specific state (products, sales cache, etc) clears
+    window.location.reload();
   };
 
   const [page, setPageRaw]           = useState(startPage);
@@ -163,7 +162,7 @@ function AppShell() {
   useEffect(() => { startKeepalive(); return () => stopKeepalive(); }, []);
 
   const setPage = useCallback(p => { if (allowed.includes(p)) setPageRaw(p); }, [allowed]);
-  const { pushHistory } = useBackHistory(activePage, setPage, startPage);
+  const { pushHistory, showExitWarning } = useBackHistory(activePage, setPage, startPage);
   const navigate = useCallback(p => {
     if (!allowed.includes(p)) return;
     setPageRaw(p); pushHistory(p);
@@ -197,10 +196,18 @@ function AppShell() {
         onSwitchStore={isSuperAdmin ? switchStore : null}
       />
       <main className="main-content">
+        {showExitWarning && (
+          <div style={{
+            position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.85)", color: "#fff", padding: "12px 24px",
+            borderRadius: 25, fontSize: 14, fontWeight: 600, zIndex: 9999,
+            backdropFilter: "blur(8px)", whiteSpace: "nowrap",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          }}>Press back again to exit</div>
+        )}
         <SyncBanner isOnline={isOnline} pendingSync={pendingSync} />
         <AppPageHeader onSearchClick={() => setGlobalSearchOpen(true)} />
         {globalSearchOpen && <GlobalSearch onClose={() => setGlobalSearchOpen(false)} onNavigate={navigate} />}
-        <BackButtonHandler currentPage={activePage} onNavigateBack={() => navigate("dashboard")} />
         {activePage === "dashboard"  && <Dashboard />}
         {activePage === "pos"        && <POS />}
         {activePage === "inventory"  && <Inventory />}
