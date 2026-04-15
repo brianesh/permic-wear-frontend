@@ -105,8 +105,17 @@ export const categoriesAPI = {
 // ── Products ──────────────────────────────────────────────────────
 export const productsAPI = {
   getAll: async (params) => {
+    // Determine the active store for cache keying
+    const activeStoreId = localStorage.getItem('active_store_id') || 'global';
+
     if (isOffline()) {
       let products = await getCachedProducts();
+      // Filter offline cache to only show products for the current store
+      if (activeStoreId !== 'global') {
+        products = products.filter(p =>
+          String(p.store_id) === String(activeStoreId)
+        );
+      }
       if (params?.search) {
         const q = params.search.toLowerCase();
         products = products.filter(p =>
@@ -123,7 +132,7 @@ export const productsAPI = {
       return { data: products };
     }
     const res = await api.get('/products', { params });
-    // Cache the full unfiltered list for offline use
+    // Cache the full unfiltered list for offline use (backend already store-scoped it)
     if (!params?.search && !params?.brand && !params?.brand_id && !params?.sub_type_id) {
       cacheProducts(res.data || []).catch(() => {});
     }
