@@ -60,7 +60,15 @@ export default function Users() {
   };
 
   const canManage = u => me.role==="super_admin" || (u.role!=="super_admin" && me.role==="admin");
-  const canDel    = u => u.role!=="super_admin" && u.id!==me.id && (me.role==="super_admin" || u.role==="cashier");
+  // super_admin can delete any user except themselves and other super_admins
+  // admin can only delete cashiers in their own store
+  const canDel = u => {
+    if (u.id === me.id) return false;
+    if (u.role === 'super_admin') return false;
+    if (me.role === 'super_admin') return true;
+    if (me.role === 'admin') return u.role === 'cashier';
+    return false;
+  };
 
   return (
     <div className="inv-page">
@@ -142,7 +150,7 @@ export default function Users() {
                 <div className="user-card-actions">
                   <button className="tbl-btn tbl-btn--edit" onClick={()=>openEdit(u)}>Edit</button>
                   {u.id!==me.id&&<button className="tbl-btn" style={{color:"var(--text2)",border:"1px solid var(--border)"}} onClick={()=>setTogId(u.id)}>{u.status==="active"?"Deactivate":"Activate"}</button>}
-                  {canDel(u)&&<button className="tbl-btn tbl-btn--del" onClick={()=>setDelId(u.id)}>Remove</button>}
+                  {canDel(u)&&<button className="tbl-btn tbl-btn--del" onClick={()=>setDelId(u.id)} title="Delete user">🗑 Delete</button>}
                 </div>
               ):<div style={{padding:"10px 0 0",fontSize:11,color:"var(--text3)"}}>🔒 Protected account</div>}
             </div>
