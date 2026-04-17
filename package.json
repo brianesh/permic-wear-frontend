@@ -1,22 +1,38 @@
 {
-  "name": "permic-wear-pos",
+  "name": "permic-wear-api",
   "version": "1.0.0",
-  "description": "Permic Wear Solutions — POS Frontend",
-  "private": true,
-  "type": "module",
+  "description": "Permic Wear Solutions — POS & Inventory API",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "dev": "vite --mode development --host 0.0.0.0",
-    "build": "vite build --mode production",
-    "preview": "vite preview"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "migrate": "node migrations/run.js",
+    "seed": "node migrations/seed.js",
+    "setup": "node migrations/run.js && node migrations/seed.js"
   },
   "dependencies": {
+    "africastalking": "^0.6.3",
     "axios": "^1.6.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^7.14.0"
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "mysql2": "^3.6.5",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.9",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.0",
-    "vite": "^5.4.21"
+    "nodemon": "^3.0.2"
   }
 }
