@@ -50,7 +50,14 @@ export async function cacheProducts(products) {
   const os = t.objectStore("products");
   // Clear old cache first
   await new Promise((res, rej) => { const r = os.clear(); r.onsuccess=res; r.onerror=rej; });
-  for (const p of products) os.put(p);
+  // Never cache base64 photo_url — images average ~2 MB each and would fill
+  // device storage quickly. URL-based photos are fine to cache as-is.
+  for (const p of products) {
+    const safe = (p.photo_url && p.photo_url.startsWith('data:'))
+      ? { ...p, photo_url: null, has_photo: true }
+      : p;
+    os.put(safe);
+  }
   return new Promise((res, rej) => { t.oncomplete=res; t.onerror=rej; });
 }
 

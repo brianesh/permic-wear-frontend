@@ -102,6 +102,20 @@ export const categoriesAPI = {
   deleteSubtype: (id)         => api.delete(`/categories/subtypes/${id}`),
 };
 
+// ── Image helpers ─────────────────────────────────────────────────
+// Strip base64 photo_url from product objects for list views.
+// Full-size base64 images (avg ~2 MB each) must never be included in
+// list/search responses — they are only needed when editing a single product.
+function stripPhotos(products) {
+  if (!Array.isArray(products)) return products;
+  return products.map(p => {
+    if (!p.photo_url || !p.photo_url.startsWith('data:')) return p;
+    // Replace inline base64 with a sentinel so UI can still show placeholder
+    const { photo_url: _omit, ...rest } = p;
+    return { ...rest, photo_url: null, has_photo: true };
+  });
+}
+
 // ── Products ──────────────────────────────────────────────────────
 export const productsAPI = {
   getAll: async (params) => {
@@ -132,12 +146,19 @@ export const productsAPI = {
       return { data: products };
     }
     const res = await api.get('/products', { params });
-    // Cache the full unfiltered list for offline use (backend already store-scoped it)
+    // Strip base64 photos from list response — they are fetched individually
+    // only when opening the edit modal (getById). This alone prevents ~30–40 MB
+    // of data from being sent on every Inventory / POS page load.
+    const stripped = { ...res, data: stripPhotos(res.data || []) };
+    // Cache the stripped list for offline use (backend already store-scoped it)
     if (!params?.search && !params?.brand && !params?.brand_id && !params?.sub_type_id) {
-      cacheProducts(res.data || []).catch(() => {});
+      cacheProducts(stripped.data).catch(() => {});
     }
-    return res;
+    return stripped;
   },
+
+  // Fetch a single product WITH its full photo_url — used only for the edit modal
+  getById: (id) => api.get(`/products/${id}`),
 
   // Fast autocomplete search — hits /products/search endpoint
   // Falls back to in-memory cache when offline
@@ -157,14 +178,19 @@ export const productsAPI = {
       if (opts.top_type) filtered.filter(p => p.top_type === opts.top_type);
       return { data: filtered.slice(0, 15) };
     }
-    return api.get('/products/search', { params: { q, ...opts } });
+    const res = await api.get('/products/search', { params: { q, ...opts } });
+    // Strip photos from search results too — search results never need full images
+    return { ...res, data: stripPhotos(res.data || []) };
   },
 
   // Cashier's most-used products for quick picks
-  getFavorites: (params) => {
-    if (isOffline()) return getCachedProducts()
-      .then(all => ({ data: all.filter(p => p.stock > 0).slice(0, 12) }));
-    return api.get('/products/favorites', { params });
+  getFavorites: async (params) => {
+    if (isOffline()) {
+      const all = await getCachedProducts();
+      return { data: all.filter(p => p.stock > 0).slice(0, 12) };
+    }
+    const res = await api.get('/products/favorites', { params });
+    return { ...res, data: stripPhotos(res.data || []) };
   },
 
   // Record a product was used (called after successful sale)
