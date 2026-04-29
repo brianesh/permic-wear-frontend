@@ -145,7 +145,7 @@ export default function Reports() {
                       <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>{fmt(p.total)}</div>
                     </div>
                   </div>
-                ))}
+                ); })}
               </div>
             </div>
           </div>
