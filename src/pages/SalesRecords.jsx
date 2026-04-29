@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { salesAPI, usersAPI } from "../services/api";
+import { exportSalesPDF } from "../lib/pdfExport";
+import { useStore } from "../context/StoreContext";
 
 const fmt = n => `KES ${Number(n||0).toLocaleString()}`;
 const METHODS = ["All","Cash","M-Pesa","Split"];
@@ -8,6 +10,7 @@ const STATUS_FILTERS = ["All","completed","pending_mpesa","pending_split","faile
 
 export default function SalesRecords() {
   const { user } = useAuth();
+  const store = useStore();
   const isSuperAdmin = user?.role === "super_admin";
   const isGlobalMode = isSuperAdmin && !localStorage.getItem("active_store_id");
   const [sales, setSales]         = useState([]);
@@ -52,20 +55,21 @@ export default function SalesRecords() {
   const totalRev   = filtered.reduce((s,t) => s + parseFloat(t.selling_total||0), 0);
   const totalProfit= filtered.reduce((s,t) => s + parseFloat(t.extra_profit||0), 0);
   const cashTotal  = filtered.filter(t=>t.payment_method==="Cash").reduce((s,t) => s + parseFloat(t.selling_total||0), 0);
-  const mpesaTotal = filtered.filter(t=>t.payment_method==="M-Pesa").reduce((s,t) => s + parseFloat(t.selling_total||0), 0);
+  const mpesaTotal = filtered.filter(t=>["M-Pesa","Tuma"].includes(t.payment_method)).reduce((s,t) => s + parseFloat(t.selling_total||0), 0);
   const pages = Math.max(1, Math.ceil(total / PER));
 
-  const exportCSV = () => {
-    const rows = [["TXN ID","Date","Cashier","Total","Profit","Method"], ...filtered.map(s=>[s.txn_id, new Date(s.sale_date).toLocaleDateString(), s.cashier_name, s.selling_total, s.extra_profit, s.payment_method])];
-    const csv = rows.map(r=>r.join(",")).join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="sales-export.csv"; a.click();
+  const exportPDF = () => {
+    exportSalesPDF(filtered, {
+      from: dateFrom, to: dateTo,
+      storeName: store.store_name,
+    });
   };
 
   return (
     <div className="inv-page">
       <div className="page-header">
         <div><h1 className="page-title">Sales Records</h1><p className="page-sub">{total} total transactions{isGlobalMode ? " · All Stores" : ""}</p></div>
-        <button className="primary-btn" onClick={exportCSV}>⬇ Export CSV</button>
+        <button className="primary-btn" onClick={exportPDF}>⬇ Export PDF</button>
       </div>
 
       <div className="sales-summary-grid">
@@ -125,6 +129,7 @@ export default function SalesRecords() {
                           </div>
                         ))}
                         {s.payment_method==="Cash"&&<div style={{fontSize:12,color:"var(--text3)",marginTop:6}}>Amount paid: {fmt(s.amount_paid)} · Change: {fmt(s.change_given)}</div>}
+                        {(s.phone||s.mpesa_phone)&&["M-Pesa","Tuma"].includes(s.payment_method)&&<div style={{fontSize:12,color:"var(--teal)",marginTop:4}}>📱 Phone: {s.phone||s.mpesa_phone}</div>}
                         {s.mpesa_ref&&<div style={{fontSize:12,color:"var(--teal)",marginTop:4}}>M-Pesa Ref: {s.mpesa_ref}</div>}
                       </td>
                     </tr>

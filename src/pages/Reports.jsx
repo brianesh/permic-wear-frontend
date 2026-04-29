@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import { reportsAPI } from "../services/api";
 import { useStore } from "../context/StoreContext";
+import { exportReportsPDF } from "../lib/pdfExport";
 
 const fmt = n => `KES ${Number(n||0).toLocaleString()}`;
 
-function exportCSV(daily, from, to) {
-  const rows=[["Date","Revenue","Profit","Commission","Units","Method"],
-    ...daily.map(d=>[d.date,d.revenue,d.profit,d.commission,d.units,d.method||""])];
-  const csv=rows.map(r=>r.join(",")).join("\n");
-  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download=`report-${from}-${to}.csv`; a.click();
-}
+// exportCSV replaced by exportReportsPDF
 
 export default function Reports() {
   const store = useStore();
@@ -53,7 +49,7 @@ export default function Reports() {
     <div className="inv-page">
       <div className="page-header">
         <div><h1 className="page-title">Reports & Analytics</h1><p className="page-sub">{store.store_name} · {store.store_location}</p></div>
-        <button className="primary-btn" onClick={()=>exportCSV(daily,from,to)}>⬇ Export CSV</button>
+        <button className="primary-btn" onClick={()=>exportReportsPDF({summary,daily,topProds,cashiers,payMix,from,to,storeName:store.store_name})}>⬇ Export PDF</button>
       </div>
 
       <div className="rep-date-bar">
@@ -140,11 +136,11 @@ export default function Reports() {
                 </svg>
               </div>
               <div className="rep-pay-list">
-                {payMix.map((p,i)=>(
+                {payMix.map((p,i)=>{ const displayMethod = p.method === "Tuma" ? "M-Pesa" : p.method; return (
                   <div key={i} className="rep-pay-row">
                     <div className="rep-pay-dot" style={{background:COLORS[p.method]||"var(--text3)"}}/>
                     <div style={{flex:1}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:13,fontWeight:500,color:"var(--text)"}}>{p.method}</span><span style={{fontSize:13}}>{p.pct}%</span></div>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:13,fontWeight:500,color:"var(--text)"}}>{displayMethod}</span><span style={{fontSize:13}}>{p.pct}%</span></div>
                       <div className="seller-bar-wrap"><div className="seller-bar" style={{width:`${p.pct}%`,background:COLORS[p.method]||"var(--text3)"}}/></div>
                       <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>{fmt(p.total)}</div>
                     </div>
