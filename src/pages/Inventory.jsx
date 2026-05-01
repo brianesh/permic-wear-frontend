@@ -3,6 +3,7 @@ import { productsAPI, categoriesAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { generateSKU } from "../lib/skuGenerator";
 import BarcodePrinter from "../components/BarcodePrinter";
+import { exportPriceListPDF } from "../lib/pdfExport";
 
 // ── Image compression ────────────────────────────────────────────
 // Resizes and compresses images before storing as base64.
@@ -1142,6 +1143,11 @@ export default function Inventory() {
             <>
               <button className="primary-btn" style={{fontSize:13}} onClick={openBulkAdd}>📦 Bulk Add</button>
               <button className="primary-btn" style={{fontSize:13}} onClick={openAdd}>+ Add Product</button>
+              <button className="tbl-btn tbl-btn--edit" style={{fontSize:13}} onClick={() => exportPriceListPDF(products, {
+                categoryName: cat.topType,
+                brandName: cat.selBrand?.name,
+                subTypeName: cat.selSubtype?.name,
+              })}>📄 Price List</button>
             </>
           )}
         </div>

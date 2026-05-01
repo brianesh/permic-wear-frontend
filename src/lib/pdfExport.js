@@ -97,6 +97,87 @@ export function exportSalesPDF(sales, { from, to, storeName } = {}) {
 }
 
 // ── Reports PDF ────────────────────────────────────────────────────────────────
+// ── Inventory Price List PDF ───────────────────────────────────────────────────
+export function exportPriceListPDF(products, { categoryName, topType, brandName, subTypeName } = {}) {
+  const KES = n => `KES ${Number(n||0).toLocaleString()}`;
+  
+  // Group by brand if showing all subtypes, or show flat list if specific subtype
+  const grouped = {};
+  products.forEach(p => {
+    const key = p.brand || 'Other';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  let html = `
+    <h1>Price List — ${categoryName === 'shoes' ? '👟 Shoes' : '👕 Clothes'}</h1>
+    <div class="meta">
+      ${brandName ? `${brandName}` : ''} ${subTypeName ? `› ${subTypeName}` : ''}
+      · ${products.length} items · Generated ${new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}
+    </div>
+  `;
+
+  // Summary KPIs
+  const totalValue = products.reduce((s, p) => s + (parseFloat(p.min_price) || 0) * (parseInt(p.stock) || 0), 0);
+  const totalUnits = products.reduce((s, p) => s + (parseInt(p.stock) || 0), 0);
+  const lowStock = products.filter(p => p.stock <= 5 && p.stock > 0).length;
+  const outOfStock = products.filter(p => p.stock <= 0).length;
+
+  html += `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-label">Total Items</div><div class="kpi-value">${products.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Total Units</div><div class="kpi-value">${totalUnits}</div></div>
+      <div class="kpi"><div class="kpi-label">Inventory Value</div><div class="kpi-value">${KES(totalValue)}</div></div>
+      <div class="kpi"><div class="kpi-label">Low Stock</div><div class="kpi-value" style="color:#d97706">${lowStock}</div></div>
+      <div class="kpi"><div class="kpi-label">Out of Stock</div><div class="kpi-value" style="color:#dc2626">${outOfStock}</div></div>
+    </div>
+  `;
+
+  // Group by brand
+  Object.keys(grouped).sort().forEach(brand => {
+    const brandProducts = grouped[brand];
+    html += `<h2>${brand} (${brandProducts.length})</h2>`;
+    html += `<table>
+      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Size</th><th>Color</th><th>Stock</th><th>Status</th><th>Price</th></tr></thead>
+      <tbody>`;
+    
+    // Sort by category then size
+    brandProducts.sort((a, b) => {
+      const catCmp = (a.category || '').localeCompare(b.category || '');
+      if (catCmp !== 0) return catCmp;
+      return (a.size || '').localeCompare(b.size || '');
+    });
+
+    brandProducts.forEach(p => {
+      const stockStatus = p.stock <= 0 ? { label: 'Out', color: '#dc2626' }
+        : p.stock <= 2 ? { label: 'Critical', color: '#dc2626' }
+        : p.stock <= 5 ? { label: 'Low', color: '#d97706' }
+        : { label: 'OK', color: '#059669' };
+      
+      html += `<tr>
+        <td style="font-family:monospace;font-size:9px">${p.sku || '—'}</td>
+        <td style="font-weight:600">${p.name}</td>
+        <td>${p.category || '—'}</td>
+        <td style="font-weight:600">${p.size || '—'}</td>
+        <td>${p.color || '—'}</td>
+        <td style="font-weight:700">${p.stock || 0}</td>
+        <td><span class="tag" style="background:${stockStatus.color}22;color:${stockStatus.color}">${stockStatus.label}</span></td>
+        <td style="font-weight:600">${KES(p.min_price)}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+  });
+
+  if (products.length === 0) {
+    html += `<div style="text-align:center;color:#9ca3af;padding:24px">No products in this category</div>`;
+  }
+
+  html += `<div class="footer">Permic Wear Solutions · Price List · ${new Date().toLocaleDateString('en-KE')} · Confidential</div>`;
+  
+  printWindow(`Price List — ${categoryName}`, html);
+}
+
 export function exportReportsPDF({ summary, daily, topProds, cashiers, payMix, from, to, storeName } = {}) {
   const dateRange = (from && to) ? `${from} → ${to}` : 'All time';
   const s = summary || {};
