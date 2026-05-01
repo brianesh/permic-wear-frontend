@@ -144,7 +144,9 @@ export default function Inventory() {
 
   // ── Products state ────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // For price list at category/brand level
   const [loading, setLoading]     = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false); // For loading all products for price list
   const [search, setSearch]       = useState("");
 
   // ── Modals ────────────────────────────────────────────────────
@@ -1155,24 +1157,67 @@ export default function Inventory() {
 
       {/* ── Category Browser: Top ── */}
       {cat.level === "top" && (
-        <div style={{display:"flex",gap:20,marginTop:20,flexWrap:"wrap"}}>
-          {[
-            { t:"shoes",   icon:"👟", label:"Shoes",   sub:"Nike, Adidas, Jordan…" },
-            { t:"clothes", icon:"👕", label:"Clothes", sub:"Shirts, Jeans, Shorts…" },
-          ].map(({ t, icon, label, sub }) => (
-            <div
-              key={t}
-              className="panel-card"
-              style={{flex:1,minWidth:220,cursor:"pointer",padding:30,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
-              onClick={() => cat.goBrands(t)}
-              onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
-            >
-              <div style={{fontSize:56,marginBottom:12}}>{icon}</div>
-              <div style={{fontSize:20,fontWeight:700,color:"var(--text)"}}>{label}</div>
-              <div style={{fontSize:13,color:"var(--text3)",marginTop:6}}>{sub}</div>
+        <div>
+          <div style={{display:"flex",gap:20,marginTop:20,flexWrap:"wrap"}}>
+            {[
+              { t:"shoes",   icon:"👟", label:"Shoes",   sub:"Nike, Adidas, Jordan…" },
+              { t:"clothes", icon:"👕", label:"Clothes", sub:"Shirts, Jeans, Shorts…" },
+            ].map(({ t, icon, label, sub }) => (
+              <div
+                key={t}
+                className="panel-card"
+                style={{flex:1,minWidth:220,cursor:"pointer",padding:30,textAlign:"center",border:"2px solid var(--border)",transition:"border-color .2s"}}
+                onClick={() => cat.goBrands(t)}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--teal)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+              >
+                <div style={{fontSize:56,marginBottom:12}}>{icon}</div>
+                <div style={{fontSize:20,fontWeight:700,color:"var(--text)"}}>{label}</div>
+                <div style={{fontSize:13,color:"var(--text3)",marginTop:6}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Price list for all products */}
+          <div style={{marginTop:24,padding:"16px",background:"var(--bg2)",borderRadius:12,border:"1px solid var(--border)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:15,color:"var(--text)"}}>📄 Generate Full Price List</div>
+                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Download a complete PDF price list of all inventory</div>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <button
+                  className="tbl-btn tbl-btn--edit"
+                  onClick={async () => {
+                    setLoadingAll(true);
+                    try {
+                      const res = await productsAPI.getAll({ top_type: 'shoes' });
+                      exportPriceListPDF(res.data || [], { categoryName: 'shoes' });
+                    } catch (e) { console.error(e); }
+                    finally { setLoadingAll(false); }
+                  }}
+                  disabled={loadingAll}
+                >
+                  👟 Shoes Price List
+                </button>
+                <button
+                  className="tbl-btn tbl-btn--edit"
+                  onClick={async () => {
+                    setLoadingAll(true);
+                    try {
+                      const res = await productsAPI.getAll({ top_type: 'clothes' });
+                      exportPriceListPDF(res.data || [], { categoryName: 'clothes' });
+                    } catch (e) { console.error(e); }
+                    finally { setLoadingAll(false); }
+                  }}
+                  disabled={loadingAll}
+                >
+                  👕 Clothes Price List
+                </button>
+              </div>
             </div>
-          ))}
+            {loadingAll && <div style={{marginTop:12,textAlign:"center",color:"var(--text3)",fontSize:13}}>Loading products…</div>}
+          </div>
         </div>
       )}
 
@@ -1183,7 +1228,23 @@ export default function Inventory() {
             <button className="tbl-btn" onClick={cat.goTop}>← Back</button>
             <span style={{fontSize:12,color:"var(--text3)"}}>{cat.topType === "shoes" ? "👟" : "👕"} › Brand</span>
             {isAdmin && <button className="primary-btn" style={{fontSize:12,padding:"6px 12px",marginLeft:"auto"}} onClick={openBrandAdd}>+ Add Brand</button>}
+            <button
+              className="tbl-btn tbl-btn--edit"
+              style={{marginLeft:"auto"}}
+              onClick={async () => {
+                setLoadingAll(true);
+                try {
+                  const res = await productsAPI.getAll({ top_type: cat.topType });
+                  exportPriceListPDF(res.data || [], { categoryName: cat.topType });
+                } catch (e) { console.error(e); }
+                finally { setLoadingAll(false); }
+              }}
+              disabled={loadingAll}
+            >
+              📄 All {cat.topType === "shoes" ? "👟 Shoes" : "👕 Clothes"} Price List
+            </button>
           </div>
+          {loadingAll && <div style={{textAlign:"center",padding:12,color:"var(--text3)",fontSize:13}}>Loading products…</div>}
           {cat.loading
             ? <div style={{padding:30,textAlign:"center",color:"var(--text3)"}}>Loading…</div>
             : (
