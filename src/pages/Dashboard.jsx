@@ -130,7 +130,7 @@ export default function Dashboard() {
     const revUp = period === "today" ? pct >= 0 : tr >= 0;
     const dateRangeStr = formatRevenueDateRange(period, customFrom, customTo);
     const revSub = period === "today"
-      ? `${dateRangeStr} · vs yesterday ${pct >= 0 ? "+" : ""}${pct}%`
+      ? dateRangeStr
       : period === "custom"
       ? `${dateRangeStr} · ${tt} txns`
       : `${activePeriodLabel} · ${tt} txns`;
