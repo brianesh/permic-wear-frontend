@@ -24,6 +24,9 @@ const ROLE_LABEL    = { super_admin: 'Super Admin', admin: 'Admin', cashier: 'Ca
 export default function Commission() {
   const { user, commissionRate } = useAuth();
   const [period, setPeriod]     = useState('day');
+  const [customFrom, setCustomFrom] = useState(localYmd());
+  const [customTo, setCustomTo]   = useState(localYmd());
+  const [useCustomRange, setUseCustomRange] = useState(false);
   const [staff, setStaff]       = useState([]);   // from /reports/cashiers — one row per user
   const [sales, setSales]       = useState([]);   // raw sales list
   const [loading, setLoading]   = useState(true);
@@ -38,7 +41,9 @@ export default function Commission() {
     if (!user?.id) { setLoading(false); return; }
     setLoading(true);
     setError('');
-    const range = getRange(period);
+    const range = useCustomRange
+      ? { from: customFrom, to: customTo }
+      : getRange(period);
 
     Promise.all([
       reportsAPI.cashiers(range),
@@ -53,7 +58,7 @@ export default function Commission() {
         setError('Failed to load commission data. Check server logs.');
       })
       .finally(() => setLoading(false));
-  }, [period, user?.id]);
+  }, [period, customFrom, customTo, useCustomRange, user?.id]);
 
   useEffect(() => { load(); }, [load, tick]);
 
@@ -214,11 +219,33 @@ export default function Commission() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {['day','week','month'].map(v => (
             <button key={v} type="button"
-              className={`period-btn ${period === v ? 'period-btn--active' : ''}`}
-              onClick={() => setPeriod(v)}>
+              className={`period-btn ${period === v && !useCustomRange ? 'period-btn--active' : ''}`}
+              onClick={() => { setPeriod(v); setUseCustomRange(false); }}>
               {PERIOD_LABELS[v]}
             </button>
           ))}
+          <button type="button"
+            className={`period-btn ${useCustomRange ? 'period-btn--active' : ''}`}
+            onClick={() => setUseCustomRange(true)}>
+            📅 Custom Range
+          </button>
+          {useCustomRange && (
+            <>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text1)', fontSize: 13, outline: 'none' }}
+              />
+              <span style={{ color: 'var(--text3)', fontSize: 12 }}>to</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text1)', fontSize: 13, outline: 'none' }}
+              />
+            </>
+          )}
           <button type="button" className="period-btn"
             disabled={loading || !user?.id}
             onClick={() => setTick(t => t + 1)}>
@@ -230,6 +257,12 @@ export default function Commission() {
       {error && (
         <div className="lf-error" style={{ marginBottom: 16 }}>
           <span>⚠</span> {error}
+        </div>
+      )}
+
+      {useCustomRange && (
+        <div style={{ marginBottom: 16, padding: '8px 16px', background: 'var(--gold)15', borderRadius: 8, fontSize: 13, color: 'var(--gold)' }}>
+          Showing commission for {customFrom} to {customTo}
         </div>
       )}
 
