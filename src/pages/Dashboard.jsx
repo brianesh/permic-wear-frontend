@@ -29,6 +29,39 @@ const formatRangeLabel = (from, to) => {
   return from === to ? f : `${f} – ${t}`;
 };
 
+// Format date range for revenue sub-label with time details
+const formatRevenueDateRange = (period, from, to) => {
+  const opts = { day: "numeric", month: "short", year: "numeric" };
+  if (period === "today") {
+    const today = new Date().toLocaleDateString("en-KE", opts);
+    return `${today} (00:00 – 23:59)`;
+  }
+  if (period === "week") {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+    const f = startOfWeek.toLocaleDateString("en-KE", opts);
+    const t = now.toLocaleDateString("en-KE", opts);
+    return `${f} – ${t}`;
+  }
+  if (period === "year") {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const f = startOfYear.toLocaleDateString("en-KE", { month: "short", year: "numeric" });
+    const t = now.toLocaleDateString("en-KE", opts);
+    return `${f} – ${t}`;
+  }
+  if (period === "custom" && from && to) {
+    const f = new Date(from + "T00:00:00").toLocaleDateString("en-KE", opts);
+    const t = new Date(to + "T00:00:00").toLocaleDateString("en-KE", opts);
+    if (from === to) {
+      return `${f} (00:00 – 23:59)`;
+    }
+    return `${f} – ${t}`;
+  }
+  return "";
+};
+
 export default function Dashboard() {
   const [period, setPeriod]         = useState("today");
   const [summary, setSummary]       = useState(null);
@@ -95,13 +128,19 @@ export default function Dashboard() {
                      : period === "custom" ? "Period revenue"
                      : "Year revenue";
     const revUp = period === "today" ? pct >= 0 : tr >= 0;
+    const dateRangeStr = formatRevenueDateRange(period, customFrom, customTo);
+    const revSub = period === "today"
+      ? `${dateRangeStr} · vs yesterday ${pct >= 0 ? "+" : ""}${pct}%`
+      : period === "custom"
+      ? `${dateRangeStr} · ${tt} txns`
+      : `${activePeriodLabel} · ${tt} txns`;
     return [
       {
         label: revLabel,
         value: fmt(revDisplay),
         change: period === "today" ? `${pct >= 0 ? "+" : ""}${pct}%` : "",
         up: revUp,
-        sub: period === "today" ? "vs yesterday" : `${activePeriodLabel} · ${tt} txns`,
+        sub: revSub,
         accent: "#f5a623", icon: "↗",
       },
       { label: "Units sold",     value: String(Math.round(tu)), change: "", up: tu >= 0, sub: activePeriodLabel, accent: "#4ecdc4", icon: "👟" },
