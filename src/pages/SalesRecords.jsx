@@ -237,7 +237,7 @@ export default function SalesRecords() {
                             Amount paid: {fmt(s.amount_paid)} · Change: {fmt(s.change_given)}
                           </div>
                         )}
-                        {(s.phone||s.mpesa_phone) && ["M-Pesa","Tuma"].includes(s.payment_method) && (
+                        {(s.phone||s.mpesa_phone) && ["M-Pesa","Tuma","Split"].includes(s.payment_method) && (
                           <div style={{fontSize:12,color:"var(--teal)",marginTop:4}}>
                             📱 Phone: {s.phone||s.mpesa_phone}
                           </div>
