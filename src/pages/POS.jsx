@@ -310,9 +310,20 @@ export default function POS() {
   const change = paidAmt - subtotal;
   const allPriced = cart.length > 0 && cart.every(c => num(c.sellingPrice) >= c.minPrice);
 
+  // Generate a unique idempotency key for this sale
+  // Based on: user, cart items, timestamp to ensure uniqueness but allow deduplication
+  const generateIdempotencyKey = useCallback(() => {
+    const cartIds = cart.map(c => c.id).sort().join('-');
+    const cartQtys = cart.map(c => `${c.id}:${c.qty}`).sort().join('-');
+    return `sale-${user?.id || 'anon'}-${Date.now()}-${cartIds}-${cartQtys}`;
+  }, [cart, user]);
+
   const doCheckout = async method => {
     const items = cart.map(c => ({ product_id: c.id, qty: c.qty, selling_price: num(c.sellingPrice) }));
     setCheckoutErr("");
+
+    // Generate idempotency key to prevent duplicate sales
+    const idempotencyKey = generateIdempotencyKey();
 
     const finalAmountPaid = (method === "Tuma" || method === "M-Pesa") ? subtotal : paidAmt;
 
@@ -327,7 +338,7 @@ export default function POS() {
 
     try {
       const mp = method === "Split" ? Math.max(0, subtotal - paidAmt) : 0;
-      console.log("[POS] Creating sale:", { method, finalAmountPaid, mp, phone: mpesaPhone || "none" });
+      console.log("[POS] Creating sale:", { method, finalAmountPaid, mp, phone: mpesaPhone || "none", idempotency_key: idempotencyKey });
       const r = await salesAPI.create({
         items,
         payment_method: method,
@@ -335,6 +346,7 @@ export default function POS() {
         phone: mpesaPhone || undefined,
         mpesa_phone: mpesaPhone || undefined,
         mpesa_portion: mp || undefined,
+        idempotency_key: idempotencyKey,
       });
       const { txn_id, selling_total, change_given, commission, sale_id } = r.data;
       saleCommRef.current = Number(commission) || 0;
