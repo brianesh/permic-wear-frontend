@@ -119,7 +119,6 @@ export default function SalesRecords() {
       setExporting(false);
     }
   };
-  
 
   return (
     <div className="inv-page">
