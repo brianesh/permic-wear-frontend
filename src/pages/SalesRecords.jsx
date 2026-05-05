@@ -33,6 +33,7 @@ export default function SalesRecords() {
   const [summaryProfit, setSummaryProfit] = useState(0);
   const [summaryCash,   setSummaryCash]   = useState(0);
   const [summaryMpesa,  setSummaryMpesa]  = useState(0);
+  const [summarySplit,  setSummarySplit]  = useState(0);
   const [exporting,     setExporting]     = useState(false);
 
   useEffect(() => {
@@ -77,10 +78,12 @@ export default function SalesRecords() {
                             .reduce((s, t) => s + parseFloat(t.selling_total || 0), 0));
         setSummaryMpesa( all.filter(t => ["M-Pesa","Tuma"].includes(t.payment_method))
                             .reduce((s, t) => s + parseFloat(t.selling_total || 0), 0));
+        setSummarySplit( all.filter(t => t.payment_method === "Split")
+                            .reduce((s, t) => s + parseFloat(t.selling_total || 0), 0));
       })
       .catch(() => {
         setSummaryRev(0); setSummaryProfit(0);
-        setSummaryCash(0); setSummaryMpesa(0);
+        setSummaryCash(0); setSummaryMpesa(0); setSummarySplit(0);
       });
   }, [buildParams, isGlobalMode]);
 
@@ -136,6 +139,7 @@ export default function SalesRecords() {
           ["Total Profit",   fmt(summaryProfit), "var(--green)"],
           ["Cash Sales",     fmt(summaryCash),   "var(--text)"],
           ["M-Pesa Sales",   fmt(summaryMpesa),  "var(--teal)"],
+          ["Split Sales",    fmt(summarySplit),  "var(--gold)"],
         ].map(([l, v, c]) => (
           <div key={l} className="summary-card">
             <div className="summary-label">{l}</div>
@@ -235,6 +239,12 @@ export default function SalesRecords() {
                         {s.payment_method === "Cash" && (
                           <div style={{fontSize:12,color:"var(--text3)",marginTop:6}}>
                             Amount paid: {fmt(s.amount_paid)} · Change: {fmt(s.change_given)}
+                          </div>
+                        )}
+                        {s.payment_method === "Split" && (
+                          <div style={{fontSize:12,color:"var(--gold)",marginTop:6,display:"flex",gap:16}}>
+                            <span>💵 Cash: {fmt(s.cash_amount ?? (parseFloat(s.selling_total||0) - parseFloat(s.mpesa_amount||0)))}</span>
+                            <span>📱 M-Pesa: {fmt(s.mpesa_amount)}</span>
                           </div>
                         )}
                         {(s.phone||s.mpesa_phone) && ["M-Pesa","Tuma","Split"].includes(s.payment_method) && (
